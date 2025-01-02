@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+#
+# Author: Clifton Jones
+# Description:
+#  EmComm Tools wrapper for WSJT-X
+#
+
+WSJTX_CONF_TEMPLATE="${ET_HOME}/conf/template.d/WSJT-X.conf"
+WSJTX_CONF="${HOME}/.config/WSJT-X.ini"
+
+usage() {
+  echo "usage: $(basename $0) <command>"
+  echo "  <command>"
+  echo "    start           - Start YAAC"
+  echo "    update-config   - Update configuration for selected mode"
+}
+
+if [ $# -ne 1 ]; then
+  usage
+  exit 1
+fi
+
+notify_user() {
+  notify-send \
+   -t 5000 \
+   --app-name="EmComm Tools" \
+   "$1"
+}
+
+update-config () {
+    [ -z "$ET_USER_CONFIG" ] && ET_USER_CONFIG="${HOME}/.config/emcomm-tools/user.json"
+
+    CALLSIGN=$(cat ${ET_USER_CONFIG} | jq -r .callsign)
+    GRID=$(cat ${ET_USER_CONFIG} | jq -r .grid)
+
+    if [ "${CALLSIGN}" = "N0CALL" ]; then
+      notify_user "Can't start WSJT-X. No callsign set. Run: et-user."
+      exit 1
+    fi
+
+    et-log "Updating WSJT-X config file: ${WSJTX_CONF}..."
+    cp -v ${WSJTX_CONF_TEMPLATE} ${WSJTX_CONF}
+    sed -i "s|{{ET_CALLSIGN}}|${CALLSIGN}|g" ${WSJTX_CONF}
+    sed -i "s|{{ET_GRID}}|${GRID}|g" ${WSJTX_CONF}
+
+
+    echo "Generated the configuration below..."
+    echo
+    cat ${WSJTX_CONF}
+    echo
+
+}
+
+start() {
+  if ! update-config; then
+    et-log "Error updating configuration. Cannot start WSJT-X"
+    exit 1
+  fi
+
+  CMD="wsjtx"
+  et-log "Starting WSJT-X with ${CMD}"
+
+  ${CMD}
+}
+
+case $1 in
+  start)
+    start
+    ;;
+  update-config)
+    update-config
+    ;;
+  *)
+    echo "Invalid command."
+    usage
+    exit 1
+  ;;
+esac
+
+
+
+
+
