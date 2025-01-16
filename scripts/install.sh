@@ -24,6 +24,8 @@ cd ${SCRIPTS_DIR}
 # Install WSJT-X
 ${SCRIPTS_DIR}/install-wsjtx.sh
 
+${SCRIPTS_DIR}/install-kiwix.sh
+
 # Install ET OS Addons command and support files
 ${SCRIPTS_DIR}/install-et-os-addons.sh
 

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Kiwix
+Comment=Offline website browser
+Exec=/opt/appimages/kiwix-desktop_x86_64.appimage
+Terminal=false
+Type=Application
+Icon=kiwix-desktop
+StartupNotify=true
+Categories=Education;Application;WebBrowser;
+
