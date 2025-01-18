@@ -29,5 +29,9 @@ ${SCRIPTS_DIR}/install-kiwix.sh
 # Install ET OS Addons command and support files
 ${SCRIPTS_DIR}/install-et-os-addons.sh
 
+# Configure WiFi Hotspot
+${SCRIPTS_DIR}/fix-wifi-hotspot.sh
+
+
 
 
