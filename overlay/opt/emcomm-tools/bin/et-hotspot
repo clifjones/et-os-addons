@@ -40,6 +40,11 @@ start() {
     read -p "(y/n): " confirm
 
     if [[ "${confirm}" =~ ^[Yy]$ ]]; then
+      if ! nmcli c modify Hotspot 802-11-wireless-security.pmf 1; then
+        et-log "Failed to configure WiFi Hotspot security"
+        exit 3
+      fi
+      
       if ! nmcli device wifi hotspot ssid ${ssid} password ${psk}; then
         et-log "Failed to start WiFi Hotspot"
         exit 2
