@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#
+# Author: Clifton Jones (KD4CTJ)
+# Description:
+#   Make additional changes to the desktop, such as default X server and Gnome overrides
+#
+
+GDM3_CUSTOM_FILE="/etc/gdm3/custom.conf"
+
+function disableWayland() {
+  et-log "Disable Wayland..."
+  grep "WaylandEnable" ${GDM3_CUSTOM_FILE} > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+      sed -i "s/^.*WaylandEnable.*$/WaylandEnable=false/" ${GDM3_CUSTOM_FILE} 
+    else
+      et-log "Cannot find WaylandEnable line"
+      exit 1
+    fi
+}
+
+et-log "Customizing desktop..."
+
+disableWayland
+
+et-log "Desktop customization complete"
+
+

@@ -14,11 +14,23 @@ function checkInstall() {
   return $?
 }
 
+function removeKiwixPkg() {
+  if dpkg-query -W kiwix > /dev/null 2>&1 ; then
+    et-log "Removing broken KIWIX first"
+    apt purge -y kiwix
+  fi
+  return $?
+ }
+
 et-log "Installing KIWIX Desktop..."
 
 if [ ! -d ${DEST_DIR} ] ; then
   mkdir ${DEST_DIR}
 fi
+
+# Insure that we don't have the broken KIWIX installed
+# Broken: Webserver, which prevents the hotspot feature
+removeKiwixPkg
 
 # Uninstall any previous versions
 if checkInstall; then
