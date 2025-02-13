@@ -21,10 +21,17 @@ cd ${ET_SCRIPTS_DIR} && ./install.sh
 
 cd ${SCRIPTS_DIR}
 
-# Install WSJT-X
-${SCRIPTS_DIR}/install-wsjtx.sh
+# Install WSJT-X-Improved
+${SCRIPTS_DIR}/install-wsjtx-improved.sh
 
+# Install Grid Tracker 2
+${SCRIPTS_DIR}/install-gridtracker.sh
+
+# Install working KIWIX app
 ${SCRIPTS_DIR}/install-kiwix.sh
+
+# Customize Gnome Desktop
+${SCRIPTS_DIR}/customize-desktop.sh
 
 # Install ET OS Addons command and support files
 ${SCRIPTS_DIR}/install-et-os-addons.sh

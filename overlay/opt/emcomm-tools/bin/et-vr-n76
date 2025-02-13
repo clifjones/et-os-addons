@@ -1,0 +1,269 @@
+#!/bin/bash
+#
+# Authors   : Gaston Gonzalez
+#           : Clifton Jones
+# Date      : 1 January 2025
+# Updated   : 19 February 2025
+# Purpose   : Utility for accessing the Bluetooth TNC on the VGC VR-N76
+#
+
+ACTIVE_RADIO="${ET_HOME}/conf/radios.d/vgc-vrn76.bt.json"
+DEVICE_NAME="VR-N76"
+BT_DEVICE="/dev/rfcomm0"
+AX25_PORT="wl2k"
+AX25_CONF_FILE="/etc/ax25/axports"
+
+ESC="\x1B"
+RED="${ESC}[1;31m"
+BLUE="${ESC}[1;34m"
+GREEN="${ESC}[1;32m"
+WHITE="${ESC}[97m"
+YELLOW="${ESC}[1;33m"
+NC="${ESC}[0m"
+
+function usage() {
+  echo "Usage: $(basename $0) <command>"
+  echo "  connect-kiss - Connect to radio via Bluetooth via KISS" 
+  echo "  connect-serial - Connect to radio via Bluetooth serial"
+  echo "  disconnect - Disconnect from radio"
+  echo "  pair    - Pair radio (one-time operation)" 
+  echo "  unpair  - Unpair radio" 
+}
+
+if [ $# -ne 1 ]; then
+  usage
+  exit 1
+fi
+
+error_message() {
+  echo -e "${RED}"
+  et-log $*
+  echo -e "${NC}"
+}
+
+info_message() {
+  echo -e "${BLUE}"
+  et-log $*
+  echo -e "${NC}"
+}
+
+success_message() {
+  echo -e "${GREEN}"
+  et-log $*
+  echo -e "${NC}"
+}
+
+exit_if_no_active_radio () {
+  if [ ! -e ${ACTIVE_RADIO} ]; then
+    error_message "${ACTIVE_RADIO} file not found"    
+    exit 1
+  fi
+}
+
+get_mac_or_exit () {
+  MAC=$(cat ${ACTIVE_RADIO} | jq -e -r .bluetooth.mac)
+  if [ $? -ne 0 ]; then
+    error_message "No MAC address found in ${ACTIVE_RADIO}."
+    exit 1
+  fi
+}
+
+update_ax25_conf() {
+
+  [ -z "$ET_USER_CONFIG" ] && ET_USER_CONFIG="${HOME}/.config/emcomm-tools/user.json"
+
+  CALLSIGN=$(cat ${ET_USER_CONFIG} | jq -r .callsign)
+
+  if [ "${CALLSIGN}" = "N0CALL" ]; then
+    error_message "No callsign set. Run et-user first."
+    exit 1
+  fi
+
+  GREP_OUT=$(grep ${AX25_PORT} ${AX25_CONF_FILE})
+  if [ $? -eq 0 ]; then
+    # Delete all existing AX.25 port  entries. Note: we can't use sed here
+    # since we do not have permission to create a temporary file with
+    # inline replacement. ed modifies the file directly.
+    printf "g/^${AX25_PORT}/d\nw\nq\n" | ed ${AX25_CONF_FILE} > /dev/null 2>&1
+
+  fi
+
+  info_message "Adding AX25 port for ${CALLSIGN}"
+  echo "${AX25_PORT} ${CALLSIGN} 1200 255	2 1200 Packet" >> ${AX25_CONF_FILE}
+}
+
+stop_all_services() {
+
+  PS_OUT=$(ps -ef | grep [k]issattach) 
+  if [ $? -eq 0 ]; then
+    info_message "Killing kissattach process(es)..."$
+    sudo killall kissattach
+  fi
+ 
+  sleep 3
+
+  PS2_OUT=$(ps -ef | grep -v krfcommd | grep [r]fcomm) 
+  if [ $? -eq 0 ]; then
+    info_message "Killing rfcomm process(es)..."
+    sudo killall rfcomm
+  fi
+}
+
+exit_if_no_active_radio
+
+case $1 in
+  pair)
+
+    MAC=$(cat ${ACTIVE_RADIO} | jq -e -r .bluetooth.mac)
+    if [ $? -eq 0 ]; then
+      PAIR_STATUS=$(bluetoothctl info "${MAC}" | grep "Paired:" | awk '{print $2}')
+      if [ "${PAIR_STATUS}" == "yes" ]; then
+         error_message "Device with MAC ${MAC} is already paired."
+         exit 1
+      fi
+    fi 
+
+    echo -e "${YELLOW}"
+    echo -e "1. Turn on the VGC VR-N76"
+    echo -e "2. Goto Menu > Pairing and press OK"
+    read -p "3. Press [ENTER] when done."
+
+    info_message "Searching for ${DEVICE_NAME}..."
+
+    HCI_OUT=$(hcitool scan | grep "${DEVICE_NAME}")
+    if [ $? -ne 0 ]; then
+      error_message "Can't find ${DEVICE_NAME}. Make sure that the radio is on and in pairing mode."
+      exit 1
+    fi
+
+	MAC=$(echo ${HCI_OUT} | awk '{print $1}')
+
+    # Update configuration file detected MAC address
+    sed -i "s|.*mac.*|    \"mac\": \"${MAC}\"|g" ${ACTIVE_RADIO}
+
+    # Generate an expect script to automatically pair our device.
+    PAIR_SCRIPT="${HOME}/pair"
+
+cat <<EOF > ${PAIR_SCRIPT}
+#!/usr/bin/expect -f
+
+set device "${MAC}"
+set timeout 60
+
+spawn bluetoothctl
+expect "Agent registered"
+send "power on\r"
+expect "Changing power on succeeded"
+send "scan on\r"
+expect "${MAC}"
+send "pair ${MAC}\r"
+expect "Pairing successful"
+send "trust ${MAC}\r"
+expect "trust succeeded"
+send "exit\r"
+expect eof
+EOF
+
+    sleep 1 && chmod 755 ${PAIR_SCRIPT} && expect ${PAIR_SCRIPT}
+
+    ;;
+  unpair)
+    MAC=$(cat ${ACTIVE_RADIO} | jq -e -r .bluetooth.mac)
+    if [ $? -ne 0 ]; then
+      error_message "No MAC found in radio configuration file."
+      exit 1
+    fi 
+
+    PAIR_STATUS=$(bluetoothctl info "${MAC}")
+    if [ $? -ne 0 ]; then
+       error_message "No device with ${MAC} found. Can't unpair."
+       exit 1
+    fi
+
+    info_message "Unpairing ${DEVICE_NAME}..."
+    bluetoothctl untrust ${MAC}
+    bluetoothctl remove ${MAC}
+
+    echo -e "${YELLOW}"
+    echo -e "You may also want to remove this device from your VR-N76"
+    echo -e "under Menu > General Settings > Connection > Paired Devices." 
+    echo -e "${NC}"
+
+    ;;
+  connect-kiss)
+  connect-serial)
+    get_mac_or_exit
+
+    echo -e "${YELLOW}"
+    echo -e "1. Turn on the VGC VR-N76"
+    echo -e "2. Menu > General Settings > KISS TNC = checked"
+    read -p "3. Press [ENTER] when done."
+
+    is_paired=$(bluetoothctl info ${MAC} | grep "Paired" | awk '{print $2}')
+    if [ "${is_paired}" != "yes" ]; then
+    echo -e "${RED}"
+      et-log "VR-N76 is not paired. Run: '$(basename $0) pair'"
+      echo -e "${NC}"
+      exit 1
+    fi  
+ 
+    echo -e "${GREEN}Found VR-N76 with MAC address: ${MAC}" 
+    stop_all_services
+
+    update_ax25_conf 
+
+    echo -e "${BLUE}Connecting to radio..." 
+    sudo rfcomm connect /dev/rfcomm0 ${MAC} 1>/dev/null 2>&1 &
+
+    sleep 10 && reset
+
+    if [ -e /dev/rfcomm0 ]; then
+      echo -e "${GREEN}VR-N76 connected via Bluetooth serial${NC}" 
+    else
+      echo -e "${RED}VR-N76 failed to connect via Bluetooth serial${NC}"
+      exit 1
+    fi
+
+    if [ "$1" == "connect-serial" ]; then
+      exit 0
+    fi
+    
+    echo -e "${BLUE}Connecting KISS interface using ${BT_DEVICE} and AX.25 port: ${AX25_PORT}${NC}"
+    KISS_OUT=$(sudo kissattach ${BT_DEVICE} ${AX25_PORT})
+    
+    if [ $? -eq 0 ]; then
+      echo -e "${GREEN}Packet port ready"
+    else 
+      echo -e "${RED}Failed to setup radio for packet.${NC}"
+      exit 1
+    fi
+
+    KISS_OUT=$(sudo kissparms -c 1 -p ${AX25_PORT})
+
+    echo -e "${YELLOW}"
+    echo -e "SAMPLE COMMANDS                  DESCRIPTION                     "
+    echo -e "-------------------------------  --------------------------------"
+    echo -e "axcall ${AX25_PORT} <STATION>    Connect directly to a node      "
+    echo -e "axcall ${AX25_PORT} <DIGI>       Connect to node via a digipeater"
+    echo -e "sudo axlisten -a -tttt -c        Monitor inbound and outbound traffic"
+    echo -e "${NC}"
+
+    ;;
+disconnect)
+    is_paired=$(bluetoothctl info ${MAC} | grep "Paired" | awk '{print $2}')
+    if [ "${is_paired}" != "yes" ]; then
+    echo -e "${RED}"
+      et-log "VR-N76 is not paired. Run: '$(basename $0) pair'"
+      echo -e "${NC}"
+      exit 1
+    fi  
+ 
+    echo -e "${GREEN}Found VR-N76 with MAC address: ${MAC}" 
+    stop_all_services
+    ;;
+  *)
+    et-log "Invalid command."
+    usage
+    exit 1
+  ;;
+esac

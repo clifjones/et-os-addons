@@ -1,0 +1,15 @@
+{
+  "id": "vgc-vrn76",
+  "vendor": "VGC",
+  "model": "VR-N76 (BT)",
+  "bluetooth": {
+    "mac": ""
+  },
+  "notes": [
+    "Menu > General Settings > KISS TNC > Enable KISS TNC = checked"
+  ],
+  "fieldNotes": [
+    "Power cycle VGC between each Bluetooth operation",
+    "If power cycling VGC doesn't help, cycle Bluetooth on laptop"
+  ]
+}

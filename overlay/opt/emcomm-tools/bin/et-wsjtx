@@ -43,6 +43,49 @@ update-config () {
     sed -i "s|{{ET_CALLSIGN}}|${CALLSIGN}|g" ${WSJTX_CONF}
     sed -i "s|{{ET_GRID}}|${GRID}|g" ${WSJTX_CONF}
 
+    # 1. Check if the symlink was created by the udev rules
+    if [ -e /dev/et-audio ]; then
+
+       # 2. Check that this device was properly tagged with the ET_AUDIO env variable with a udev rule
+       APLAY_OUT=$(arecord -l | grep ET_AUDIO)
+       if [ $? -eq 0 ]; then
+         AUDIO_DEVICE=$(echo $APLAY_OUT | cut -d"," -f2 | cut -d":" -f1 | awk '{print $2}')
+
+         WSJTX_AUDIO_DEVICE="sysdefault:CARD=ET_AUDIO"
+  
+         et-log "Using '${WSJTX_AUDIO_DEVICE}' for WSJT-X configuration."
+
+         # 3. Check for existing WSJT-X sound configuration
+
+         ## Update input
+         grep "^SoundInName" ${WSJTX_CONF_FILE}
+         if [ $? -eq 0 ]; then
+           sed -i "s|^SoundInName.*|SoundInName=\"${WSJTX_AUDIO_DEVICE}\"|" ${WSJTX_CONF_FILE} 
+         else
+           echo "SoundInName=\"${WSJTX_AUDIO_DEVICE}\"" >> ${WSJTX_CONF_FILE}
+         fi
+
+         ## Update output
+         grep "^SoundOutName" ${WSJTX_CONF_FILE}
+         if [ $? -eq 0 ]; then
+           sed -i "s|^SoundOutName.*|SoundOutName=\"${WSJTX_AUDIO_DEVICE}\"|" ${WSJTX_CONF_FILE} 
+         else
+           echo "SoundOutName=\"${WSJTX_AUDIO_DEVICE}\"" >> ${WSJTX_CONF_FILE}
+         fi
+
+         ## Configure ALSA settings for sound card
+         /opt/emcomm-tools/bin/et-audio update-config
+
+       else
+         et-log "No ET_AUDIO device detected."
+         notify_user "Can't start WSJT-X. No ET_AUDIO device detected."
+         exit 1
+       fi
+    else
+      et-log "No ET_AUDIO device plugged in."
+      notify_user "Can't start WSJT-X. No supported audio device plugged in."
+      exit 1
+    fi
 
     echo "Generated the configuration below..."
     echo
@@ -52,15 +95,13 @@ update-config () {
 }
 
 start() {
-  if ! update-config; then
-    et-log "Error updating configuration. Cannot start WSJT-X"
-    exit 1
+  /opt/emcomm-tools/bin/et-kill-all && update-config && /usr/bin/wsjtx &
+
+  if [ ! -e /dev/et-gps ]; then
+    notify-send -u critical -i \
+      /usr/share/icons/Yaru/48x48/status/dialog-information.png \
+      "No GPS. Ensure your time is accurate when WSJT-X starts."
   fi
-
-  CMD="wsjtx"
-  et-log "Starting WSJT-X with ${CMD}"
-
-  ${CMD}
 }
 
 case $1 in
