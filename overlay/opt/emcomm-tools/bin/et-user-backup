@@ -1,0 +1,56 @@
+#!/bin/bash
+# Author  : Gaston Gonzalez
+# Date    : 14 January 2025
+# Modifed by Clif Jones
+# Purpose : Back up select files from the user's home directory.
+#
+
+TODAY=$(date +"%Y%m%d")
+BACKUP_FILE="${HOME}/etc-user-backup-${HOSTNAME}-${TODAY}.tar.gz"
+# All paths are relative to $HOME.
+# See https://www.gnu.org/software/tar/manual/html_section/files.html#files
+# for input file options
+BACKUP_ITEMS_FILE="${HOME}/BACKUP_ITEMS.lst"
+
+ESC="\033"
+CYAN="$ESC[36m"
+GREEN="$ESC[0;32m"
+RED="$ESC[0;31m"
+WHITE="$ESC[1;37m"
+YELLOW="$ESC[1;33m"
+NC="$ESC[0m"
+
+if [ -e "${BACKUP_FILE}" ]; then
+  echo -e -n "${RED}A backup file for today exists. Can ${WHITE}${BACKUP_FILE} ${RED}be overwritten? (y/n) ${NC}"
+  read response
+  [[ $response != [yY] ]] && echo "Skipping backup and exiting." && exit 1
+fi
+
+tar -czf ${BACKUP_FILE} \
+   -C "${HOME}" -T ${BACKUP_ITEMS_FILE}
+
+[ $? -ne 0 ] && et-log "Error creating backup" && exit 1
+
+# Test that we can read if after we create it.
+TAR_OUT=$(tar -tzf ${BACKUP_FILE})
+[ $? -ne 0 ] && et-log "Can't read backup file: ${BACKUP_FILE}. Error creating backup." && exit 1
+
+echo -e "${GREEN}Backup created: ${WHITE}${BACKUP_FILE}\n"
+
+echo -e "${CYAN}Note: Only the following directories were backed up:"
+for dir in "${BACKUP_DIRS[@]}"; do
+  echo "* $dir"
+done
+
+echo -e "\nIf you need files outside of these directories, please back them up manually.\n${NC}"
+
+read -p  "Do you want see the full list of files backed up? (y/n) " response
+[[ $response != [yY] ]] && exit 0 
+
+echo -e "1. ${YELLOW}Press ${WHITE}[SPACE]${YELLOW} to page through the list of files.${NC}"
+echo -e "2. ${YELLOW}Press ${WHITE}[UP/DOWN]${YELLOW} to scroll through the list of files.${NC}"
+echo -e "3. ${YELLOW}Press ${WHITE}q${YELLOW} when done viewing the list of files.\n${NC}"
+read -p "Press any key to view the backup."
+
+tar -tzf ${BACKUP_FILE} | less
+

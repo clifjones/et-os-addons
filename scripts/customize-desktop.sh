@@ -7,6 +7,7 @@
 
 GDM3_CUSTOM_FILE="/etc/gdm3/custom.conf"
 
+# Disabling Wayland will degrade Conky operation
 function disableWayland() {
   et-log "Disable Wayland..."
   grep "WaylandEnable" ${GDM3_CUSTOM_FILE} > /dev/null 2>&1
@@ -20,7 +21,7 @@ function disableWayland() {
 
 et-log "Customizing desktop..."
 
-disableWayland
+#disableWayland
 
 et-log "Desktop customization complete"
 

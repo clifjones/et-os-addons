@@ -21,9 +21,6 @@ cd ${ET_SCRIPTS_DIR} && ./install.sh
 
 cd ${SCRIPTS_DIR}
 
-# Disabled -Install WSJT-X Removed in favor of WSJTX-X-Improved
-#${SCRIPTS_DIR}/install-wsjtx.sh
-
 # Install WSJT-X-Improved
 ${SCRIPTS_DIR}/install-wsjtx-improved.sh
 

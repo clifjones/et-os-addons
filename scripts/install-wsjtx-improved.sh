@@ -5,7 +5,7 @@
 #  Installs WSJT-X-Improved https://wsjt-x-improved.sourceforge.io
 #
 
-WSJTX_DEB_DL="https://downloads.sourceforge.net/project/wsjt-x-improved/WSJT-X_v2.7.1/Linux/wsjtx_2.7.1-devel_improved_PLUS_250106-RC8_amd64.deb"
+WSJTX_DEB_DL="https://downloads.sourceforge.net/project/wsjt-x-improved/WSJT-X_v2.7.1/Linux/wsjtx_2.7.1-devel_improved_AL_PLUS_250106-RC8_amd64.deb"
 TMP_FILE="/tmp/wsjtx-tmp.deb"
 
 function cleanup() {
