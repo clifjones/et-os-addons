@@ -21,6 +21,7 @@ function disableWayland() {
 
 et-log "Customizing desktop..."
 
+# Disabled since XOrg breaks Conky
 #disableWayland
 
 et-log "Desktop customization complete"
