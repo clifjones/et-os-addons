@@ -21,7 +21,11 @@ if [ $# -ne 1 ]; then
 fi
 
 start() {
-  CURR_SSID="$(nmcli c show Hotspot | grep '802-11-wireless.ssid' | sed 's/.*: *\([^ ]*\)$/\1/')"
+  if `nmcli c show | grep -qw Hotspot` ; then
+    CURR_SSID="$(nmcli c show Hotspot | grep '802-11-wireless.ssid' | sed 's/.*: *\([^ ]*\)$/\1/')"
+  else
+    CURR_SSID="HAM"
+  fi
 
   while true ; do
     read -e -p "Enter desired Hotspot SSID (current: ${CURR_SSID}): " ssid
@@ -40,6 +44,12 @@ start() {
     read -p "(y/n): " confirm
 
     if [[ "${confirm}" =~ ^[Yy]$ ]]; then
+
+      if ! `nmcli c show | grep -qw Hotspot` ; then
+        iface=$(ls /sys/class/net/ | grep "^wl.\+")
+        nmcli c add type wifi ifname ${iface} con-name Hotspot autoconnect no ssid ${ssid} 802-11-wireless.mode ap 802-11-wireless.band bg ipv4.method shared wifi-sec.key-mgmt wpa-psk wifi-sec.psk ${psk}
+      fi
+
       if ! nmcli c modify Hotspot 802-11-wireless-security.pmf 1; then
         et-log "Failed to configure WiFi Hotspot security"
         exit 3
@@ -64,13 +74,6 @@ stop() {
     exit 3
   fi
 }
-
-
-HOTSPOT_IF="$(nmcli c show Hotspot | grep 'connection.interface-name' | sed 's/.*: *\([^ ]*\)$/\1/')"
-if [ -z "${HOTSPOT_IF}" ] ; then
-  et-log "Cannot find Hotspot device!"
-  exit 1
-fi
 
 case $1 in
   start)
