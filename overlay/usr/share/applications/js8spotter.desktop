@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=JS8Spotter
+Exec=/opt/emcomm-tools/bin/et-js8spotter start
+Icon=/usr/share/pixmaps/js8spotter.ico
+Terminal=false
+Type=Application
+StartupNotify=true
+Categories=Application;

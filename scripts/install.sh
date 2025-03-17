@@ -5,24 +5,24 @@
 #   Install emcomm-tools-os-community then installs additional tools
 #
 
-SCRIPT_PATH="$(readlink -f $0)"
-SCRIPTS_DIR="$(dirname ${SCRIPT_PATH})"
-export ET_OS_ADDONS_BASE="${SCRIPTS_DIR}/.."
-ET_SCRIPTS_DIR="${ET_OS_ADDONS_BASE}/emcomm-tools-os-community/scripts"
+# Load env
+. $(dirname $(readlink -f $0))/../scripts/env.sh
 
-. ${ET_SCRIPTS_DIR}/env.sh
-. ${ET_SCRIPTS_DIR}/functions.sh
+# Pre-install script
+${SCRIPTS_DIR}/pre-install.sh
 
-# Must run as user root
-exitIfNotRoot
+set -e
 
 # First install emcomm-tools-os-community
 cd ${ET_SCRIPTS_DIR} && ./install.sh
 
+# Set the trap for ERR signal
+trap 'handle_error $0 $LINENO "$BASH_COMMAND"' ERR
+
 cd ${SCRIPTS_DIR}
 
 # Install WSJT-X-Improved
-${SCRIPTS_DIR}/install-wsjtx-improved.sh
+${SCRIPTS_DIR}/install-wsjtx.sh
 
 # Install Grid Tracker 2
 ${SCRIPTS_DIR}/install-gridtracker.sh
@@ -33,10 +33,17 @@ ${SCRIPTS_DIR}/install-kiwix.sh
 # Customize Gnome Desktop
 ${SCRIPTS_DIR}/customize-desktop.sh
 
+# Install JS8Spotter
+${SCRIPTS_DIR}/install-js8spotter.sh
+
 # Install ET OS Addons command and support files
 ${SCRIPTS_DIR}/install-et-os-addons.sh
 
+# Run ETC tests - Check for errors manually
+cd ${ET_TESTS_DIR} && ./run-test-suite.sh
 
+# Run et-os-addons tests
+cd ${ET_OS_ADDONS_BASE}/tests && ./run-all-tests.sh
 
-
+echo "**** et-os-addons install completed normally ***"
 
