@@ -11,7 +11,7 @@ WSJTX_CONF="${HOME}/.config/WSJT-X.ini"
 usage() {
   echo "usage: $(basename $0) <command>"
   echo "  <command>"
-  echo "    start           - Start YAAC"
+  echo "    start           - Start WSJT-X Improved"
   echo "    update-config   - Update configuration for selected mode"
 }
 

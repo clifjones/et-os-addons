@@ -5,6 +5,11 @@
 #  Installs WSJT-X-Improved https://wsjt-x-improved.sourceforge.io
 #
 
+# Load env if this script executed individually
+[ -z "$ET_ENV_LOADED" ] && . $(dirname $(readlink -f $0))/env.sh
+
+set -e 
+
 WSJTX_DEB_DL="https://downloads.sourceforge.net/project/wsjt-x-improved/WSJT-X_v2.7.1/Linux/wsjtx_2.7.1-devel_improved_AL_PLUS_250106-RC8_amd64.deb"
 TMP_FILE="/tmp/wsjtx-tmp.deb"
 WSJTX_DESKTOP_FILE="/usr/share/applications/wsjtx.desktop"
@@ -25,7 +30,6 @@ et-log "Installing WSJT-X..."
 if checkInstall; then
   et-log "Removing old WSJT-X"
   apt purge -y wsjtx wsjtx-doc wsjtx-data
-  return $?
 fi
 
 # Download target version of WSJT-X-Improved and install
@@ -37,7 +41,9 @@ fi
 
 # Install DEB file. Then fix dependency errors
 rm -rf "/usr/share/doc/wsjtx"
+set +e
 dpkg -i "${TMP_FILE}"
+set -e
 if ! apt install --fix-broken -y; then
   cleanup
   et-log "WSJTX-X update failed!"

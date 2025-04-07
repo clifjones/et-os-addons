@@ -5,6 +5,11 @@
 #  Installs https://kiwix.org/en/applications/
 #
 
+# Load env if this script executed individually
+[ -z "$ET_ENV_LOADED" ] && . $(dirname $(readlink -f $0))/env.sh
+
+set -e
+
 KIWIX_APP_DL="https://download.kiwix.org/release/kiwix-desktop/kiwix-desktop_x86_64.appimage"
 DEST_DIR="/opt/appimages"
 DEST_FILE="${DEST_DIR}/$(basename ${KIWIX_APP_DL})"
@@ -45,7 +50,11 @@ if ! curl -L -o "${DEST_FILE}" --fail "${KIWIX_APP_DL}"; then
 fi
 
 # Set execution bit
-chmod +x ${DEST_FILE}
+chmod ag+x ${DEST_FILE}
+
+et-log "Updating Kiwix launcher icon to support PNP..."
+cp -v ${ET_OS_ADDONS_BASE}/overlay/usr/share/applications/kiwix.desktop /usr/share/applications/.
+cp -v ${ET_OS_ADDONS_BASE}/overlay/usr/share/pixmaps/kiwix-desktop.svg /usr/share/pixmaps/.
 
 et-log "KIWIX Desktop install complete"
 

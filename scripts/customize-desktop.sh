@@ -5,6 +5,9 @@
 #   Make additional changes to the desktop, such as default X server and Gnome overrides
 #
 
+# Load env if this script executed individually
+[ -z "$ET_ENV_LOADED" ] && . $(dirname $(readlink -f $0))/env.sh
+
 GDM3_CUSTOM_FILE="/etc/gdm3/custom.conf"
 
 # Disabling Wayland will degrade Conky operation

@@ -5,11 +5,17 @@
 #  Installs Grid Tracker 2
 #
 
+# Load env if this script executed individually
+[ -z "$ET_ENV_LOADED" ] && . $(dirname $(readlink -f $0))/env.sh
+
+set -e 
+
 GRIDTRACKER2_DEB_DL="https://download2.gridtracker.org/GridTracker2-2.250201.1-amd64.deb"
 TMP_FILE="/tmp/gridtracker2-tmp.deb"
 
 function cleanup() {
-  unlink "${TMP_FILE}"
+  [ -e "{TMP_FILE}" ] && unlink "${TMP_FILE}"
+  return 0
 }
 
 function checkInstall() {

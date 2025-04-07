@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+#
+# Author: Clifton Jones
+# Description:
+#  EmComm Tools wrapper for JS8Spotter
+#
+
+# JS8Spotter config sqlite3 DB
+JS8SPOTTER_DB="${HOME}/apps/js8spotter/js8spotter.db"
+# JS8Call listening TCP port
+JS8CALL_TCP_PORT=2442
+
+usage() {
+  echo "usage: $(basename $0) <command>"
+  echo "  <command>"
+  echo "    start           - Start JS8Spotter"
+  echo "    update-config   - Update configuration for selected mode"
+}
+
+if [ $# -ne 1 ]; then
+  usage
+  exit 1
+fi
+
+notify_user() {
+  notify-send \
+   -t 5000 \
+   --app-name="EmComm Tools" \
+   "$1"
+}
+
+wait_for_js8call() {
+  # Maximum time to wait (in seconds) for JS8Call listener
+  local timeout=30
+  local sleep_interval=1  # Check every 1 second
+  # Counter for listener timeout
+  local elapsed=0
+
+  # Loop until port is open or timeout is reached
+  while ! nc -z "localhost" "${JS8CALL_TCP_PORT}" 2>/dev/null; do
+      if [ ${elapsed} -ge ${timeout} ]; then
+          notify-send -u critical -i \
+      /usr/share/icons/Yaru/48x48/status/dialog-information.png \
+      "Timed-out waiting for JS8Call to be listening"
+          return 1
+      fi
+      sleep $sleep_interval
+      elapsed=$((elapsed + SLEEP_INTERVAL))
+      echo "Waiting... (${elapsed}s elapsed)"
+  done
+
+  return 0
+}
+
+update-config () {
+  [ -z "$ET_USER_CONFIG" ] && ET_USER_CONFIG="${HOME}/.config/emcomm-tools/user.json"
+
+  CALLSIGN=$(cat ${ET_USER_CONFIG} | jq -r .callsign)
+  GRID=$(cat ${ET_USER_CONFIG} | jq -r .grid)
+
+  if [ "${CALLSIGN}" = "N0CALL" ]; then
+    notify_user "Can't start JS8Spotter. No callsign set. Run: et-user."
+    exit 1
+  fi
+
+  et-log "Updating JS8Spotter config file: ${JS8SPOTTER_DB} ..."
+  sqlite3 ${JS8SPOTTER_DB} <<EOF
+    UPDATE setting SET value = '${CALLSIGN}' WHERE name = 'callsign';
+    UPDATE setting SET value = '${GRID}' WHERE name = 'grid';
+EOF
+  if [ $? -ne 0 ]; then
+    et-log "Error configuring JS8Spotter"
+    exit 1
+  fi
+}
+
+start() {
+  # Check/start JS8Call
+  pgrep js8call > /dev/null 2>&1
+  if [ $? -ne 0 ]; then
+    et-log "Starting JS8Call..."
+    /opt/emcomm-tools/bin/et-js8call start
+    notify-send -u critical -i \
+      /usr/share/icons/Yaru/48x48/status/dialog-information.png \
+      "Starting JS8Call before JS8Spotter..."
+  fi
+
+  # Wait for JS8Call to be listening
+  if ! wait_for_js8call ; then
+    et-log "Error connecting to JS8Call"
+    exit 3
+  fi
+
+  # Launch JS8Spotter
+  if ! update-config ; then
+    et-log "Error updating JS8Spotter config"
+    exit 2
+  fi
+  
+  cd ${HOME}/apps/js8spotter && python3 js8spotter.py &
+}
+
+case $1 in
+  start)
+    start
+    ;;
+  update-config)
+    update-config
+    ;;
+  *)
+    echo "Invalid command."
+    usage
+    exit 1
+  ;;
+esac
+
+
+
+
+
