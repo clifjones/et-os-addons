@@ -1,4 +1,11 @@
+BACKUP_ITEMS.lst
 .config/emcomm-tools
 .local/share/emcomm-tools
 .local/share/pat
+.local/share/WSJT-X
+.navit/bookmark.txt
+.navit/maps
+Documents
+my-maps
+YAAC
 

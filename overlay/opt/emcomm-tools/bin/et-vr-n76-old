@@ -191,6 +191,7 @@ EOF
 
     ;;
   connect-kiss)
+    ;;
   connect-serial)
     get_mac_or_exit
 
