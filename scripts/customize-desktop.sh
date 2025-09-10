@@ -26,6 +26,10 @@ et-log "Customizing desktop..."
 # Disabled since XOrg breaks Conky
 #disableWayland
 
+cp ../overlay/usr/share/glib-2.0/schemas/95_ubuntu-settings.gschema.override \
+  /usr/share/glib-2.0/schemas/
+glib-compile-schemas /usr/share/glib-2.0/schemas/
+
 et-log "Desktop customization complete"
 
 

@@ -1,5 +1,5 @@
 [submodule "emcomm-tools-os-community"]
 	path = emcomm-tools-os-community
-	url = https://github.com/thetechprepper/emcomm-tools-os-community
+	url = https://github.com/clifjones/emcomm-tools-os-community
 [submodule]
-	emcomm-tools-os-community = release/r4
+	emcomm-tools-os-community = release/r5

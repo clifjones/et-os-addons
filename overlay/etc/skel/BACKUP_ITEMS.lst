@@ -5,6 +5,7 @@ BACKUP_ITEMS.lst
 .local/share/WSJT-X
 .navit/bookmark.txt
 .navit/maps
+.wine32
 Documents
 my-maps
 YAAC

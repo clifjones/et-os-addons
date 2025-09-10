@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=et-launcher
+Comment=EmComm Tools Launcher
+Exec=/opt/appimages/et-launcher.appimage
+Terminal=false
+Type=Application
+Icon=et-launcher
+StartupNotify=true
+Categories=Education;Application;WebBrowser;
+
