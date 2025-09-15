@@ -10,7 +10,7 @@
 
 set -e 
 
-GRIDTRACKER2_DEB_DL="https://download2.gridtracker.org/GridTracker2-2.250407.2-amd64.deb"
+GRIDTRACKER2_DEB_DL="https://download2.gridtracker.org/GridTracker2-2.250901.0-amd64.deb"
 TMP_FILE="/tmp/gridtracker2-tmp.deb"
 
 function cleanup() {

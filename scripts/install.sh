@@ -21,6 +21,9 @@ trap 'handle_error $0 $LINENO "$BASH_COMMAND"' ERR
 
 cd ${SCRIPTS_DIR}
 
+# Install xygrib
+${SCRIPTS_DIR}/install-xygrib.sh
+
 # Install WSJT-X-Improved
 ${SCRIPTS_DIR}/install-wsjtx.sh
 
@@ -35,6 +38,9 @@ ${SCRIPTS_DIR}/customize-desktop.sh
 
 # Install JS8Spotter
 ${SCRIPTS_DIR}/install-js8spotter.sh
+
+# Install et-launcher
+${SCRIPTS_DIR}/install-et-launcher.sh
 
 # Install ET OS Addons command and support files
 ${SCRIPTS_DIR}/install-et-os-addons.sh

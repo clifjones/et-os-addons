@@ -10,7 +10,7 @@
 
 set -e 
 
-WSJTX_DEB_DL="https://downloads.sourceforge.net/project/wsjt-x-improved/WSJT-X_v2.8.0/Linux/wsjtx_2.8.0_improved_PLUS_250314_amd64.deb"
+WSJTX_DEB_DL="https://downloads.sourceforge.net/project/wsjt-x-improved/WSJT-X_v2.8.0/Linux/wsjtx_2.8.0_improved_PLUS_250501_amd64.deb"
 TMP_FILE="/tmp/wsjtx-tmp.deb"
 WSJTX_DESKTOP_FILE="/usr/share/applications/wsjtx.desktop"
 

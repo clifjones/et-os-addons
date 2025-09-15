@@ -1,0 +1,2 @@
+[org.gnome.shell]
+favorite-apps = ['emcomm-tools.desktop', 'js8call.desktop', 'et-aircraft.desktop', 'org.gnome.Terminal.desktop', 'navit.desktop', 'min.desktop', 'org.gnome.Settings.desktop', 'et-launcher.desktop', 'org.gnome.Nautilus.desktop']

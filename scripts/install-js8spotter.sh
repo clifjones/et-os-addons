@@ -10,7 +10,7 @@
 
 set -e
 
-VERSION="115"
+VERSION="117"
 ZIP_FILE="js8spotter-${VERSION}_src.zip"
 INSTALL_DIR="${SKEL}/apps/js8spotter-${VERSION}_src"
 LINK_PATH="${SKEL}/apps/js8spotter"
@@ -60,8 +60,11 @@ pip3 install --user requests
 [ $? -ne 0 ] && et-log "Error installing Python libs for JS8Spotter" && exit 4
 # Move the local libs to skel
 mkdir -p /etc/skel/.local/lib
-rsync -a ${HOME}/.local/lib/python3.10 /etc/skel/.local/lib/.
+if [ -d ${HOME}/.local/lib/python3.10 ]; then
+  rsync -a ${HOME}/.local/lib/python3.10 /etc/skel/.local/lib/.
+fi
 # Pick up Python libs already installed globally
+mkdir -p /etc/skel/.local/lib/python3.10/site-packages
 rsync -a /usr/lib/python3/dist-packages/urllib3* /etc/skel/.local/lib/python3.10/site-packages/.
 
 cd ${CWD_DIR}

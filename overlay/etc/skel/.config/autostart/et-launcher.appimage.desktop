@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Exec=/opt/appimages/et-launcher.appimage
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name[en_US]=et-launcher
+Name=et-launcher
+Comment[en_US]=Start et-launcher
+Comment=Start et-launcher

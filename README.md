@@ -12,6 +12,9 @@ et-os-addons adds the following enhancements to [EmComm Tools OS Community](http
 - Added installer for DisplayLink drivers.
 - Enhanced et-user-backup command to allow for user-specified backup directories and files.
 - Added VGC VR-N76 radio support (Absorbed into EmComm Tools OS Community)
+- Added et-launcher to reduce reliance on Linux command line actions
+- Added xygrib for viewing weather maps
+- Added prototype Saildocs weather map retrieval script
 
 The main documentation site is provided by the [EmComm Tools OS Community](https://community.emcommtools.com/getting-stated/) wiki.
 You must build your own distribution due to the base OS licensing terms. [Please do not distribute pre-built images](https://ubuntu.com/legal/intellectual-property-policy#1-summary).
