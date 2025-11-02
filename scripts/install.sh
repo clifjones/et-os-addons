@@ -27,6 +27,9 @@ ${SCRIPTS_DIR}/install-xygrib.sh
 # Install WSJT-X-Improved
 ${SCRIPTS_DIR}/install-wsjtx.sh
 
+# Install QSSTV
+${SCRIPTS_DIR}/install-qsstv.sh
+
 # Install Grid Tracker 2
 ${SCRIPTS_DIR}/install-gridtracker.sh
 
@@ -38,6 +41,9 @@ ${SCRIPTS_DIR}/customize-desktop.sh
 
 # Install JS8Spotter
 ${SCRIPTS_DIR}/install-js8spotter.sh
+
+# Install NetControl
+${SCRIPTS_DIR}/install-netcontrol.sh
 
 # Install et-launcher
 ${SCRIPTS_DIR}/install-et-launcher.sh

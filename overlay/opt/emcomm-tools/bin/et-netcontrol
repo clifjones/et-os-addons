@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+#
+# Author: Clifton Jones
+# Description:
+#  EmComm Tools wrapper for W4DJW's NetControl application for running https://brars.cc/ nets.
+#
+
+source /opt/emcomm-tools/bin/et-common
+
+EXE="${HOME}/.wine32/drive_c/netcontrol/NetControl.exe"
+
+if [[ ! -e ${EXE} ]]; then
+  echo -e "${RED}"
+  echo -e "${EXE} does not exist."
+  echo -e "You might NOT have installed the windows subsystem (WINE) or the NetControl application."
+  echo -e "Navigate to ${WHITE}${HOME}/add-ons/wine${RED} and follow the"
+  echo -e "instructions in the ${WHITE}README.md${RED} file."
+  echo -e "${NC}"
+  exit 1
+fi
+
+dialog --title "User Action Required" --msgbox "NetControl is not a plug and play mode. You must configure NetControl manually." 10 50
+tput sgr 0 && clear
+
+cd ${HOME}/.wine32/drive_c/netcontrol
+
+wine ${EXE}
+

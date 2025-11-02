@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=BRARS NetControl
+Exec=/opt/emcomm-tools/bin/et-netcontrol start
+Icon=/usr/share/pixmaps/netcontrol.png
+Terminal=false
+Type=Application
+StartupNotify=true
+Categories=Application;
