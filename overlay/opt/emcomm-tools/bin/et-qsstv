@@ -2,16 +2,16 @@
 #
 # Author: Clifton Jones
 # Description:
-#  EmComm Tools wrapper for WSJT-X
+#  EmComm Tools wrapper for QSSTV
 #
 
-WSJTX_CONF_TEMPLATE="${ET_HOME}/conf/template.d/WSJT-X.conf"
-WSJTX_CONF="${HOME}/.config/WSJT-X.ini"
+QSSTV_CONF_TEMPLATE="${ET_HOME}/conf/template.d/qsstv_9.0.conf"
+QSSTV_CONF="${HOME}/.config/ON4QZ/qsstv_9.0.conf"
 
 usage() {
   echo "usage: $(basename $0) <command>"
   echo "  <command>"
-  echo "    start           - Start WSJT-X Improved"
+  echo "    start           - Start QSSTV"
   echo "    update-config   - Update configuration for selected mode"
 }
 
@@ -34,15 +34,17 @@ update-config () {
     GRID=$(cat ${ET_USER_CONFIG} | jq -r .grid)
 
     if [ "${CALLSIGN}" = "N0CALL" ]; then
-      notify_user "Can't start WSJT-X. No callsign set. Run: et-user."
+      notify_user "Can't start QSSTV. No callsign set. Run: et-user."
       exit 1
     fi
 
-    et-log "Updating WSJT-X config file: ${WSJTX_CONF}..."
-    cp -v ${WSJTX_CONF_TEMPLATE} ${WSJTX_CONF}
-    sed -i "s|{{ET_CALLSIGN}}|${CALLSIGN}|g" ${WSJTX_CONF}
-    sed -i "s|{{ET_GRID}}|${GRID}|g" ${WSJTX_CONF}
-    sed -i "s|{{ET_USER_HOME}}|${HOME}|g" ${WSJTX_CONF}
+    et-log "Updating QSSTV config file: ${QSSTV_CONF}..."
+    mkdir -p $(dirname ${QSSTV_CONF})
+    cp -v ${QSSTV_CONF_TEMPLATE} ${QSSTV_CONF}
+    sed -i "s|{{ET_CALLSIGN}}|${CALLSIGN}|g" ${QSSTV_CONF}
+    sed -i "s|{{ET_GRID}}|${GRID}|g" ${QSSTV_CONF}
+    sed -i "s|{{ET_USER_HOME}}|${HOME}|g" ${QSSTV_CONF}
+
 
     # 1. Check if the symlink was created by the udev rules
     if [ -e /dev/et-audio ]; then
@@ -52,26 +54,26 @@ update-config () {
        if [ $? -eq 0 ]; then
          AUDIO_DEVICE=$(echo $APLAY_OUT | cut -d"," -f2 | cut -d":" -f1 | awk '{print $2}')
 
-         WSJTX_AUDIO_DEVICE="sysdefault:CARD=ET_AUDIO"
+         QSSTV_AUDIO_DEVICE="hw:CARD=ET_AUDIO,DEV=${AUDIO_DEVICE} -- USB Audio CODEC, USB Audio"
   
-         et-log "Using '${WSJTX_AUDIO_DEVICE}' for WSJT-X configuration."
+         et-log "Using '${QSSTV_AUDIO_DEVICE}' for QSSTV configuration."
 
-         # 3. Check for existing WSJT-X sound configuration
+         # 3. Check for existing QSSTV sound configuration
 
          ## Update input
-         grep "^SoundInName" ${WSJTX_CONF_FILE}
+         grep "^inputAudioDevice" ${QSSTV_CONF}
          if [ $? -eq 0 ]; then
-           sed -i "s|^SoundInName.*|SoundInName=\"${WSJTX_AUDIO_DEVICE}\"|" ${WSJTX_CONF_FILE} 
+           sed -i "s|^inputAudioDevice.*|inputAudioDevice=\"${QSSTV_AUDIO_DEVICE}\"|" ${QSSTV_CONF} 
          else
-           echo "SoundInName=\"${WSJTX_AUDIO_DEVICE}\"" >> ${WSJTX_CONF_FILE}
+           echo "inputAudioDevice=\"${QSSTV_AUDIO_DEVICE}\"" >> ${QSSTV_CONF}
          fi
 
          ## Update output
-         grep "^SoundOutName" ${WSJTX_CONF_FILE}
+         grep "^outputAudioDevice=" ${QSSTV_CONF}
          if [ $? -eq 0 ]; then
-           sed -i "s|^SoundOutName.*|SoundOutName=\"${WSJTX_AUDIO_DEVICE}\"|" ${WSJTX_CONF_FILE} 
+           sed -i "s|^outputAudioDevice.*|outputAudioDevice=\"${QSSTV_AUDIO_DEVICE}\"|" ${QSSTV_CONF} 
          else
-           echo "SoundOutName=\"${WSJTX_AUDIO_DEVICE}\"" >> ${WSJTX_CONF_FILE}
+           echo "outputAudioDevice=\"${QSSTV_AUDIO_DEVICE}\"" >> ${QSSTV_CONF}
          fi
 
          ## Configure ALSA settings for sound card
@@ -79,30 +81,24 @@ update-config () {
 
        else
          et-log "No ET_AUDIO device detected."
-         notify_user "Can't start WSJT-X. No ET_AUDIO device detected."
+         notify_user "Can't start QSSTV. No ET_AUDIO device detected."
          exit 1
        fi
     else
       et-log "No ET_AUDIO device plugged in."
-      notify_user "Can't start WSJT-X. No supported audio device plugged in."
+      notify_user "Can't start QSSTV. No supported audio device plugged in."
       exit 1
     fi
 
     echo "Generated the configuration below..."
     echo
-    cat ${WSJTX_CONF}
+    cat ${QSSTV_CONF}
     echo
 
 }
 
 start() {
-  /opt/emcomm-tools/bin/et-kill-all && update-config && /usr/bin/wsjtx &
-
-  if [ ! -e /dev/et-gps ]; then
-    notify-send -u critical -i \
-      /usr/share/icons/Yaru/48x48/status/dialog-information.png \
-      "No GPS. Ensure your time is accurate when WSJT-X starts."
-  fi
+  /opt/emcomm-tools/bin/et-kill-all && update-config && /usr/local/bin/qsstv &
 }
 
 case $1 in
