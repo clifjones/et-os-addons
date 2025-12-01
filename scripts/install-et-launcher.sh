@@ -10,7 +10,7 @@
 
 set -e
 
-ET_LAUNCHER_APP_DL="https://github.com/clifjones/et-launcher/releases/download/app-v0.3.0-20-12b16ae/et-launcher_0.3.0_amd64.AppImage"
+ET_LAUNCHER_APP_DL="https://github.com/clifjones/et-launcher/releases/download/app-v0.3.0-24-95bfb42/et-launcher_0.3.0_amd64.AppImage" 
 DEST_DIR="/opt/appimages"
 DEST_FILE="${DEST_DIR}/et-launcher.appimage"
 
