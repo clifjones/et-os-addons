@@ -1,0 +1,159 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:          et-mbtileserver
+# Required-Start:    $network $remote_fs
+# Required-Stop:     $network $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: EmComm Tools MBTiles Server daemon
+# Description:       Manages the EmComm Tools MBTiles Server service
+### END INIT INFO
+
+# Author: Clifton Jones (KD4CTJ)
+# Date: 4 December 2024
+# Purpose: Init.d script for EmComm Tools MBTiles Server daemon
+
+DAEMON="/opt/emcomm-tools/bin/et-mbtileserver"
+DAEMON_NAME="et-mbtileserver"
+PIDFILE="/var/run/${DAEMON_NAME}.pid"
+USER="root"
+
+# Source function library if available
+if [ -f /etc/rc.d/init.d/functions ]; then
+    . /etc/rc.d/init.d/functions
+elif [ -f /lib/lsb/init-functions ]; then
+    . /lib/lsb/init-functions
+fi
+
+# Check if daemon exists
+[ -x "$DAEMON" ] || exit 0
+
+start() {
+    echo -n "Starting $DAEMON_NAME: "
+    if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
+        echo "$DAEMON_NAME is already running (PID: $(cat $PIDFILE))"
+        return 1
+    fi
+    
+    # Set HOME if not set (required by et-mbtileserver script)
+    if [ -z "$HOME" ]; then
+        # Try to get home directory of first regular user, or use /root
+        if [ -d /home ]; then
+            FIRST_USER_HOME=$(ls -d /home/* 2>/dev/null | head -n1)
+            if [ -n "$FIRST_USER_HOME" ]; then
+                export HOME="$FIRST_USER_HOME"
+            else
+                export HOME="/root"
+            fi
+        else
+            export HOME="/root"
+        fi
+    fi
+    
+    if [ "$USER" != "root" ]; then
+        su -s /bin/bash -c "$DAEMON &" "$USER"
+    else
+        $DAEMON &
+    fi
+    
+    echo $! > "$PIDFILE"
+    echo "done"
+    return 0
+}
+
+stop() {
+    echo -n "Stopping $DAEMON_NAME: "
+    if [ ! -f "$PIDFILE" ]; then
+        echo "$DAEMON_NAME is not running"
+        return 1
+    fi
+    
+    PID=$(cat "$PIDFILE")
+    if ! kill -0 "$PID" 2>/dev/null; then
+        echo "$DAEMON_NAME is not running (stale PID file)"
+        rm -f "$PIDFILE"
+        return 1
+    fi
+    
+    # Find and kill the mbtileserver process
+    # et-mbtileserver is a wrapper, so we need to find the actual mbtileserver process
+    MBTILESERVER_PID=$(pgrep -f "mbtileserver --port 1982" | head -n1)
+    if [ -n "$MBTILESERVER_PID" ]; then
+        kill "$MBTILESERVER_PID" 2>/dev/null
+    fi
+    
+    kill "$PID" 2>/dev/null
+    RETVAL=$?
+    
+    # Wait for process to terminate
+    for i in {1..10}; do
+        if ! kill -0 "$PID" 2>/dev/null; then
+            break
+        fi
+        sleep 1
+    done
+    
+    # Force kill if still running
+    if kill -0 "$PID" 2>/dev/null; then
+        kill -9 "$PID" 2>/dev/null
+    fi
+    
+    # Also force kill mbtileserver if still running
+    if [ -n "$MBTILESERVER_PID" ] && kill -0 "$MBTILESERVER_PID" 2>/dev/null; then
+        kill -9 "$MBTILESERVER_PID" 2>/dev/null
+    fi
+    
+    rm -f "$PIDFILE"
+    echo "done"
+    return $RETVAL
+}
+
+restart() {
+    stop
+    sleep 1
+    start
+}
+
+status() {
+    if [ -f "$PIDFILE" ]; then
+        PID=$(cat "$PIDFILE")
+        if kill -0 "$PID" 2>/dev/null; then
+            echo "$DAEMON_NAME is running (PID: $PID)"
+            # Also check for mbtileserver process
+            MBTILESERVER_PID=$(pgrep -f "mbtileserver --port 1982" | head -n1)
+            if [ -n "$MBTILESERVER_PID" ]; then
+                echo "  mbtileserver process is running (PID: $MBTILESERVER_PID)"
+            fi
+            return 0
+        else
+            echo "$DAEMON_NAME is not running (stale PID file)"
+            rm -f "$PIDFILE"
+            return 1
+        fi
+    else
+        echo "$DAEMON_NAME is not running"
+        return 3
+    fi
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        restart
+        ;;
+    status)
+        status
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
+
+exit $?
+
