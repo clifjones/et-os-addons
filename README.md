@@ -3,6 +3,12 @@ et-os-addons extends [EmComm Tools OS Community](https://github.com/thetechprepp
 
 ## Installation
 Please follow the instructions in the [EmComm Tools OS Community](https://community.emcommtools.com/getting-stated/) wiki to build a bootable image.
+* **Note: This repo includes emcomm-tools-os-community as a submodule.**
+
+You have to use a different clone command for that.
+* Use `github git clone --recurse-submodules https://github.com/clifjones/et-os-addons.git` for clone/
+* Use `git submodule update --init --recursive` from the root repo dir to update.
+
 
 ### Bootable Image Install Notes
 Installing the bootable image follows Ubuntu 22.10 install flow. The following notes cover some areas that can cause trouble if one is not familiar with single/mult-boot installs of Ubuntu.
