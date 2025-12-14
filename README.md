@@ -1,14 +1,27 @@
-# et-os-addons - EmComm Tools OS Community add-ons
-et-os-addons extends [EmComm Tools OS Community](https://github.com/thetechprepper/emcomm-tools-os-community) contain popular radio packet tools not contained in the original distribution.
+# EmComm Tools OS Community add-ons
+These add-on extend [EmComm Tools OS Community](https://github.com/thetechprepper/emcomm-tools-os-community) to contain popular radio packet tools not in the original distribution. This can be useful if you want to practice using your offline emcomm appliance out in the field with more popular modes like FT8 during POTA/SOTA operations.
 
 ## Installation
-Please follow the instructions in the [EmComm Tools OS Community](https://community.emcommtools.com/getting-stated/) wiki to build a bootable image.
-* **Note: This repo includes emcomm-tools-os-community as a submodule.**
+There are two ways to install `et-os-addons` depending on your workflow. You can either update your existing installation, or you can do it as part of building an image for use on an offline appliance. Either way will work but the process is different for each.
 
-You have to use a different clone command for that.
-* Use `github git clone --recurse-submodules https://github.com/clifjones/et-os-addons.git` for clone/
-* Use `git submodule update --init --recursive` from the root repo dir to update.
+### 1) Existing EmComm Tools Installation
 
+1. Follow the instructions in the [EmComm Tools OS Community](https://community.emcommtools.com/getting-stated/) wiki to build a bootable image. When you're done either install that image on your machine or just boot from it, either way is fine.
+1. While booted from that image first create a working folder from which to build `et-os-addons`. It's fine to just make a `temp` folder in your `~/home` directory for this.
+1. `cd` into the directory then clone `et-os-addons` with the following command:
+    - `git clone --recurse-submodules https://github.com/clifjones/et-os-addons.git`
+    - NOTE: DO NOT just use `git clone` or you won't have the necessary `emcomm-tools-community` submodules that are required to update your installation.
+
+***Note:*** *To run a future update from this directory use `git submodule update --init --recursive` from the root `et-os-addons` repo.*
+
+### 2) While Building New Image
+To add `et-os-addons` while building an image of EmComm Tools for a new installation you'll need to use the download for `et-os-addons` instead of `emcomm-tools` during ***Step 8*** of the [Creating EmComm Tools Community Image](https://community.emcommtools.com/getting-stated/create-etc-image.html) page. Replace the download URL in that section with:
+
+`https://github.com/clifjones/et-os-addons/archive/refs/heads/main.zip`
+
+You will need to use `unzip` command instead of `tar` for this step. The rest of the process is the same.
+
+---
 
 ### Bootable Image Install Notes
 Installing the bootable image follows Ubuntu 22.10 install flow. The following notes cover some areas that can cause trouble if one is not familiar with single/mult-boot installs of Ubuntu.
@@ -16,7 +29,9 @@ Installing the bootable image follows Ubuntu 22.10 install flow. The following n
 * Upgrading et-os-addons - Before upgrading et-os-addons, run et-user-backup from the command line to create a user data backup. Copy this .tgz file to a USB driver for later.
 * Single boot - This is the easiest install method because you simply overwrite the entire disk.
 
-## Documentation
+---
+
+## EmComm Tools Community Documentation
 The main documentation site is provided by the [EmComm Tools OS Community](https://community.emcommtools.com/getting-stated/) wiki.
 You must build your own distribution due to the base OS licensing terms. [Please do not distribute pre-built images](https://ubuntu.com/legal/intellectual-property-policy#1-summary).
 
