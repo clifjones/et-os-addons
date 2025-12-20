@@ -2,7 +2,7 @@
 #
 # Author: Clifton Jones (KD4CTJ)
 # Description:
-#   Make additional changes to the desktop, such as default X server and Gnome overrides
+#   Initialize build directories, etc.
 #
 
 # Load env if this script executed individually
