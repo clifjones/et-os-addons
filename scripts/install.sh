@@ -5,6 +5,12 @@
 #   Install emcomm-tools-os-community then installs additional tools
 #
 
+# Define SCRIPTS_DIR before using it
+SCRIPTS_DIR="$(dirname $(readlink -f $0))"
+
+# Initialize git submodules
+${SCRIPTS_DIR}/init-submodules.sh
+
 # Load env
 . $(dirname $(readlink -f $0))/../scripts/env.sh
 
