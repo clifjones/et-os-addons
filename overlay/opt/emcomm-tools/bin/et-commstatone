@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+#
+# Author: Clifton Jones
+# Description:
+#  EmComm Tools wrapper for CommStatOne - JS8Call group add-on
+#  https://github.com/W5DMH/commstatone
+#
+
+COMMSTATONE_DIR="${HOME}/apps/commstatone"
+
+usage() {
+  echo "usage: $(basename $0) <command>"
+  echo "  <command>"
+  echo "    start           - Start CommStatOne"
+}
+
+if [ $# -ne 1 ]; then
+  usage
+  exit 1
+fi
+
+notify_user() {
+  notify-send \
+   -t 5000 \
+   --app-name="EmComm Tools" \
+   "$1"
+}
+
+start() {
+  if [[ ! -d ${COMMSTATONE_DIR} ]]; then
+    notify_user "CommStatOne not found at ${COMMSTATONE_DIR}. Run the et-os-addons install."
+    exit 1
+  fi
+
+  if [[ ! -e ${COMMSTATONE_DIR}/commstat.py ]]; then
+    notify_user "CommStatOne main script not found. Reinstall may be needed."
+    exit 1
+  fi
+
+  cd "${COMMSTATONE_DIR}" && python3 commstat.py &
+}
+
+case $1 in
+  start)
+    start
+    ;;
+  *)
+    echo "Invalid command."
+    usage
+    exit 1
+  ;;
+esac
