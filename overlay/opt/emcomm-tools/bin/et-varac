@@ -1,0 +1,21 @@
+#!/bin/bash
+# Author  : Clif Jones KD4CTJ
+# Date    : 24 February 2026
+# Updated : 24 February 2026
+# Purpose : Run VarAC
+
+source /opt/emcomm-tools/bin/et-common
+
+EXE="${HOME}/.wine32/drive_c/VarAC/VarAC.exe"
+
+if [[ ! -e ${EXE} ]]; then
+  echo -e "${RED}"
+  echo -e "${EXE} does not exist."
+  echo -e "You might NOT have installed VarAC."
+  echo -e "Navigate to ${WHITE}${HOME}/add-ons/wine${RED} and follow the"
+  echo -e "instructions in the ${WHITE}README.md${RED} file."
+  echo -e "${NC}"
+  exit 1
+fi
+
+wine "${EXE}"

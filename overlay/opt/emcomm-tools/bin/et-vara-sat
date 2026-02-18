@@ -1,0 +1,38 @@
+#!/bin/bash
+# Author  : Clif Jones KD4CTJ
+# Date    : 24 February 2026
+# Updated : 24 February 2026
+# Purpose : Run VARA SAT
+
+source /opt/emcomm-tools/bin/et-common
+
+EXE="${HOME}/.wine32/drive_c/VARA SAT/VARA SAT.exe"
+
+if [[ ! -e ${EXE} ]]; then
+  echo -e "${RED}"
+  echo -e "${EXE} does not exist."
+  echo -e "You might NOT have installed VARA SAT."
+  echo -e "Navigate to ${WHITE}${HOME}/add-ons/wine${RED} and follow the"
+  echo -e "instructions in the ${WHITE}README.md${RED} file."
+  echo -e "${NC}"
+  exit 1
+fi
+
+# 1. Check if the symlink was created by the udev rules
+if [[ -e /dev/et-audio ]]; then
+
+  # 2. Check that this device was properly tagged with the ET_AUDIO env variable with a udev rule
+  APLAY_OUT=$(arecord -l | grep ET_AUDIO)
+  if [[ $? -eq 0 ]]; then
+    # Configure ALSA settings for sound card
+    /opt/emcomm-tools/bin/et-audio update-config
+  else
+    echo -e "${RED}No ET_AUDIO device detected.${NC}"
+    exit 1
+  fi
+else
+  echo -e "${RED}No ET_AUDIO device plugged in.${NC}"
+  exit 1
+fi
+
+wine "${EXE}"

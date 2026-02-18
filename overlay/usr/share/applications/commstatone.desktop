@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=CommStatOne
+Comment=CommStatOne - JS8Call group add-on
+Exec=/opt/emcomm-tools/bin/et-commstatone start
+Icon=commstatone
+Terminal=false
+StartupNotify=true
+Categories=Application;HamRadio;

@@ -2,18 +2,23 @@
 #
 # Author: Clifton Jones
 # Description:
-#  EmComm Tools wrapper for JS8Spotter
+#  EmComm Tools wrapper for CommStatOne - JS8Call group add-on
+#  https://github.com/W5DMH/commstatone
 #
 
-# JS8Spotter config sqlite3 DB
-JS8SPOTTER_DB="${HOME}/apps/js8spotter/js8spotter.db"
+[ -z "$ET_HOME" ] && ET_HOME="/opt/emcomm-tools"
+
 # JS8Call listening TCP port
 JS8CALL_TCP_PORT=2442
+
+COMMSTATONE_DIR="${HOME}/apps/commstatone"
+COMMSTATONE_CONF="${COMMSTATONE_DIR}/config.ini"
+COMMSTATONE_CONF_TEMPLATE="${ET_HOME}/conf/template.d/commstatone.ini"
 
 usage() {
   echo "usage: $(basename $0) <command>"
   echo "  <command>"
-  echo "    start           - Start JS8Spotter"
+  echo "    start           - Start CommStatOne"
   echo "    update-config   - Update configuration for selected mode"
 }
 
@@ -40,8 +45,8 @@ wait_for_js8call() {
   while ! nc -z "localhost" "${JS8CALL_TCP_PORT}" 2>/dev/null; do
       if [ ${elapsed} -ge ${timeout} ]; then
           notify-send -u critical -i \
-      /usr/share/icons/Yaru/48x48/status/dialog-information.png \
-      "Timed-out waiting for JS8Call to be listening"
+        /usr/share/icons/Yaru/48x48/status/dialog-information.png \
+        "Timed-out waiting for JS8Call to be listening"
           return 1
       fi
       sleep $sleep_interval
@@ -52,24 +57,35 @@ wait_for_js8call() {
   return 0
 }
 
-update-config () {
+update-config() {
   [ -z "$ET_USER_CONFIG" ] && ET_USER_CONFIG="${HOME}/.config/emcomm-tools/user.json"
 
   CALLSIGN=$(cat ${ET_USER_CONFIG} | jq -r .callsign)
   GRID=$(cat ${ET_USER_CONFIG} | jq -r .grid)
 
   if [ "${CALLSIGN}" = "N0CALL" ]; then
-    notify_user "Can't start JS8Spotter. No callsign set. Run: et-user."
+    notify_user "Can't start CommStatOne. No callsign set. Run: et-user."
     exit 1
   fi
 
-  et-log "Updating JS8Spotter config file: ${JS8SPOTTER_DB} ..."
-  sqlite3 ${JS8SPOTTER_DB} <<EOF
-    UPDATE setting SET value = '${CALLSIGN}' WHERE name = 'callsign';
-    UPDATE setting SET value = '${GRID}' WHERE name = 'grid';
-EOF
+  if [[ ! -d ${COMMSTATONE_DIR} ]]; then
+    notify_user "CommStatOne not found at ${COMMSTATONE_DIR}. Run the et-os-addons install."
+    exit 1
+  fi
+
+  if [[ ! -e ${COMMSTATONE_CONF_TEMPLATE} ]]; then
+    notify_user "CommStatOne template not found at ${COMMSTATONE_CONF_TEMPLATE}."
+    exit 1
+  fi
+
+  et-log "Updating CommStatOne config file: ${COMMSTATONE_CONF} ..."
+  cp -v ${COMMSTATONE_CONF_TEMPLATE} ${COMMSTATONE_CONF}
+  sed -i "s|{{ET_CALLSIGN}}|${CALLSIGN}|g" ${COMMSTATONE_CONF}
+  sed -i "s|{{ET_GRID}}|${GRID}|g" ${COMMSTATONE_CONF}
+  sed -i "s|{{ET_USER_HOME}}|${HOME}|g" ${COMMSTATONE_CONF}
+
   if [ $? -ne 0 ]; then
-    et-log "Error configuring JS8Spotter"
+    et-log "Error configuring CommStatOne"
     exit 1
   fi
 }
@@ -82,7 +98,7 @@ start() {
     /opt/emcomm-tools/bin/et-js8call start
     notify-send -u critical -i \
       /usr/share/icons/Yaru/48x48/status/dialog-information.png \
-      "Starting JS8Call before JS8Spotter..."
+      "Starting JS8Call before CommStatOne..."
   fi
 
   # Wait for JS8Call to be listening
@@ -91,13 +107,22 @@ start() {
     exit 3
   fi
 
-  # Launch JS8Spotter
+  if [[ ! -d ${COMMSTATONE_DIR} ]]; then
+    notify_user "CommStatOne not found at ${COMMSTATONE_DIR}. Run the et-os-addons install."
+    exit 1
+  fi
+
+  if [[ ! -e ${COMMSTATONE_DIR}/commstat.py ]]; then
+    notify_user "CommStatOne main script not found. Reinstall may be needed."
+    exit 1
+  fi
+
   if ! update-config ; then
-    et-log "Error updating JS8Spotter config"
+    et-log "Error updating CommStatOne config"
     exit 2
   fi
-  
-  cd ${HOME}/apps/js8spotter && python3 js8spotter.py &
+
+  cd "${COMMSTATONE_DIR}" && python3 commstat.py &
 }
 
 case $1 in
@@ -113,8 +138,3 @@ case $1 in
     exit 1
   ;;
 esac
-
-
-
-
-
