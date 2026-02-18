@@ -29,8 +29,10 @@ Note: `et-os-addons` contains a specific branch of [EmComm Tools Community](http
 ### Bootable Image Install Notes
 Installing the bootable image follows Ubuntu 22.10 install flow. The following notes cover some areas that can cause trouble if one is not familiar with single/mult-boot installs of Ubuntu.
 
-* Upgrading et-os-addons - Before upgrading et-os-addons, run et-user-backup from the command line to create a user data backup. Copy this .tgz file to a USB driver for later.
+* Upgrading et-os-addons - Before upgrading et-os-addons, run et-user-backup from the command line to create a user data backup. Copy this .tgz file to a USB driver for later. If you are going to upgrade the WINE backup, completely remove your `~/.wine32` directory before restoring that backup.
 * Single boot - This is the easiest install method because you simply overwrite the entire disk.
+* Dual boot - Do not attempt to upgrade dual-boot unless you are very comfortable with BIOS boot configurations and identifying partitions. Getting a mismatch on legacy vs UEFI boot or picking the wrong partition for the `/` dir will result in damage to your hard drive image or your install USB image.
+
 
 ---
 
@@ -40,6 +42,8 @@ You must build your own distribution due to the base OS licensing terms. [Please
 
 ## Change Log 
 et-os-addons adds the following enhancements to [EmComm Tools OS Community](https://github.com/thetechprepper/emcomm-tools-os-community):
+- Added [CommStatOne](https://github.com/W5DMH/commstatone)
+- Added VARA Chat, VARA SAT, VARA Terminal, and [VarAC](https://www.varac-hamradio.com/) - Wine-based HF radio applications (VarAC requires manual download of installer to Downloads folder).
 - Added [WSJT-X Improved](https://wsjt-x-improved.sourceforge.io/)
 - Added [Gridtracker 2](https://gridtracker.org/)
 - Added [JS8Spotter](https://kf7mix.com/js8spotter.html)

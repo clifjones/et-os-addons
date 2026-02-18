@@ -13,7 +13,8 @@ et-log "Installing ET-OS-Addons command and support files..."
 
 # Copy EmCommTools files
 cp -v -r ${ET_OS_ADDONS_BASE}/overlay/opt/emcomm-tools/* ${ET_HOME}/.
-chmod -v 664 ${ET_HOME}/conf/template.d/*.conf
+chmod -v 664 ${ET_HOME}/conf/template.d/*.conf 2>/dev/null || true
+chmod -v 664 ${ET_HOME}/conf/template.d/*.ini 2>/dev/null || true
 
 # Copy misc Skel files
 cp -v -r ${ET_OS_ADDONS_BASE}/overlay/etc/skel/* ${SKEL}/.

@@ -51,6 +51,9 @@ ${SCRIPTS_DIR}/install-js8spotter.sh
 # Install NetControl
 ${SCRIPTS_DIR}/install-netcontrol.sh
 
+# Install CommStatOne
+${SCRIPTS_DIR}/install-commstatone.sh
+
 # Install et-launcher
 ${SCRIPTS_DIR}/install-et-launcher.sh
 
