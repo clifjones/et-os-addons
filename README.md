@@ -44,7 +44,7 @@ You must build your own distribution due to the base OS licensing terms. [Please
 et-os-addons adds the following enhancements to [EmComm Tools OS Community](https://github.com/thetechprepper/emcomm-tools-os-community):
 - Added [CommStatOne](https://github.com/W5DMH/commstatone)
 - Added VARA Chat, VARA SAT, VARA Terminal, and [VarAC](https://www.varac-hamradio.com/) - Wine-based HF radio applications (VarAC requires manual download of installer to Downloads folder).
-- Added [WSJT-X Improved](https://wsjt-x-improved.sourceforge.io/)
+- Added [WSJT-X Improved](https://wsjt-x-improved.sourceforge.io/) which overwrites the ETC WSJT-X executable.
 - Added [Gridtracker 2](https://gridtracker.org/)
 - Added [JS8Spotter](https://kf7mix.com/js8spotter.html)
 - Replaced original Kiwix with a version that has a working HTTP server mode.
