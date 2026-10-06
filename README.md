@@ -58,3 +58,4 @@ et-os-addons adds the following enhancements to [EmComm Tools OS Community](http
 - Added QSSTV and Cheese for webcam and SSTV support
 - Added support for the [Blue Ridge Amateur Radio Society NetControl app](https://brars.cc/). (Requires Wine and application install)
 - No longer require cloning of the repo to install. Install scripts will add in `emcomm-tools-community` using the `git` command or `wget` depending on the download method automatically.
+- Added [FreeDV](https://freedv.org/) 2.4.0 HF digital voice as an `et-mode` mode ("HF Digital Voice (FreeDV)") with the `et-freedv` launcher: CAT/PTT through rigctld, radio audio and callsign/grid set automatically, safe shutdown and radio mode hand-back on mode switch. Yaesu FT-991A: DATA mode and WIDTH 3000 set over CAT; DT GAIN reminders. See [docs/freedv-integration.md](docs/freedv-integration.md) and the [FT-991A test checklist](docs/freedv-ft991a-r6-test-checklist.md).
