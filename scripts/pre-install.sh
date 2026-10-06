@@ -21,3 +21,14 @@ if grep -q '^URL=.*files\.js8call\.com' "${JS8CALL_SCRIPT}"; then
   sed -i "s|^URL=.*|URL=\"${JS8CALL_URL}\"|" "${JS8CALL_SCRIPT}"
   echo "Patched ${JS8CALL_SCRIPT}: JS8Call download URL -> ETC R6 release"
 fi
+
+# ETC R6's install-pfte.sh downloads PFTE from paranoiaworks.mobi, which now returns
+# a web page instead of the package. Use the download link ETC switched to in R7
+# (emcomm-tools-os-community commit 7899533); same version, 15.0.8-1.
+PFTE_SCRIPT="${ET_SCRIPTS_DIR}/install-pfte.sh"
+PFTE_URL='https://paranoiaworks.com/download/${DOWNLOAD_FILE}'
+if grep -q 'URL=.*paranoiaworks\.mobi' "${PFTE_SCRIPT}"; then
+  sed -i "s|URL=\"https://paranoiaworks\.mobi/download/files/\${DOWNLOAD_FILE}\"|URL=\"${PFTE_URL}\"|" "${PFTE_SCRIPT}"
+  grep -q 'paranoiaworks\.mobi' "${PFTE_SCRIPT}" && { echo "ERROR: could not patch ${PFTE_SCRIPT}"; exit 1; }
+  echo "Patched ${PFTE_SCRIPT}: PFTE download URL -> paranoiaworks.com"
+fi
