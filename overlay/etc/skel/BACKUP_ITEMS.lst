@@ -1,5 +1,6 @@
 BACKUP_ITEMS.lst
 .config/emcomm-tools
+.config/freedv
 .local/share/emcomm-tools
 .local/share/pat
 .local/share/WSJT-X

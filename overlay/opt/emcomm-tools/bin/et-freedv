@@ -1,0 +1,555 @@
+#!/bin/bash
+#
+# Author  : EmComm Tools R7 + FreeDV custom build
+# Date    : 5 October 2026
+# Purpose : Wrapper script for starting FreeDV with PnP support
+#
+# Preconditions
+# 1. Supported radio and audio interface are connected and properly detected
+# 2. Radio is selected with et-radio so that rigctld is running
+#
+# Postconditions
+# 1. Stop all running EmComm Tools modes
+# 2. FreeDV CAT, radio audio, callsign, grid and FreeDV Reporter settings updated
+# 3. Radio set to the FreeDV data mode/passband (only for radios that define it)
+# 4. FreeDV started
+#
+# Notes
+# 1. FreeDV uses Hamlib "NET rigctl" (localhost:4532) so that rigctld remains
+#    the only owner of the CAT serial port (same approach as Pat/ARDOP, fldigi).
+# 2. The headset (FreeDV "sound card 2") is never changed by this script.
+# 3. FreeDV has no SIGTERM handler. It is stopped by asking the window manager
+#    to close its main window, which runs FreeDV's normal close handler
+#    (unkey PTT, stop modem, save configuration).
+. /opt/emcomm-tools/bin/et-common
+
+FREEDV_BIN=/usr/local/bin/freedv
+FREEDV_DEFAULT_CONF_FILE="${HOME}/.config/freedv/freedv.conf"
+[ -z "$FREEDV_CONF_FILE" ] && FREEDV_CONF_FILE="${FREEDV_DEFAULT_CONF_FILE}"
+[ -z "$ET_USER_CONFIG" ] && ET_USER_CONFIG="${HOME}/.config/emcomm-tools/user.json"
+[ -z "$ET_FREEDV_USER_CONFIG" ] && ET_FREEDV_USER_CONFIG="${HOME}/.config/emcomm-tools/freedv.json"
+[ -z "${ET_LOG_DIR}" ] && ET_LOG_DIR="${HOME}/.local/share/emcomm-tools"
+
+MODE_STATUS_FILE="${HOME}/.config/emcomm-tools/et-mode"
+RIGCTLD_ADDR="localhost:4532"
+
+# Radio mode/passband found before FreeDV changed it, restored by 'stop'
+RADIO_STATE_FILE="${ET_LOG_DIR}/freedv-radio-mode.state"
+
+# Matches the extracted AppImage binary (e.g. /opt/freedv-2.4.0/appdir/usr/bin/freedv)
+FREEDV_PROC_REGEX='^/opt/freedv[^ ]*/appdir/usr/bin/freedv( |$)'
+
+usage() {
+  echo "usage: $(basename $0) <command>"
+  echo "  start           - Stop other modes, update config and start FreeDV"
+  echo "  update-config   - Update config"
+  echo "  stop            - Safely stop FreeDV (unkey PTT, save config, release audio)"
+}
+
+if [[ $# -ne 1 ]]; then
+  usage
+  exit 1
+fi
+
+notify_user() {
+  notify-send \
+   -t 5000 \
+   --app-name="EmComm Tools" \
+   "$1"
+}
+
+# Critical notifications stay on screen until dismissed
+notify_user_critical() {
+  notify-send \
+   -u critical \
+   --app-name="EmComm Tools" \
+   "$1" "$2"
+}
+
+freedv_pids() {
+  pgrep -f "${FREEDV_PROC_REGEX}"
+}
+
+# Set key=value in [section] of a wxFileConfig INI file. Section and key are
+# created when missing. Other content is left untouched.
+ini_set() {
+  local file="$1" section="$2" key="$3" value="$4"
+  local tmp
+  tmp=$(mktemp "${file}.XXXXXX") || return 1
+  awk -v sec="[${section}]" -v key="${key}" -v val="${value}" '
+    BEGIN { insec = 0; done = 0 }
+    /^\[.*\]$/ {
+      if (insec && !done) { print key "=" val; done = 1 }
+      insec = ($0 == sec); print; next
+    }
+    insec && index($0, key "=") == 1 {
+      if (!done) { print key "=" val; done = 1 }
+      next
+    }
+    { print }
+    END {
+      if (!done) {
+        if (!insec) print sec
+        print key "=" val
+      }
+    }' "${file}" > "${tmp}" && chmod --reference="${file}" "${tmp}" && mv "${tmp}" "${file}"
+}
+
+# Print the value of key in [section], or nothing if not present
+ini_get() {
+  local file="$1" section="$2" key="$3"
+  awk -v sec="[${section}]" -v key="${key}" '
+    /^\[.*\]$/ { insec = ($0 == sec); next }
+    insec && index($0, key "=") == 1 { print substr($0, length(key) + 2); exit }
+  ' "${file}"
+}
+
+# Set key only if the user has not set it already (ETC default, user choice wins)
+ini_default() {
+  local file="$1" section="$2" key="$3" value="$4"
+  if [[ -z "$(awk -v sec="[${section}]" -v key="${key}" '
+      /^\[.*\]$/ { insec = ($0 == sec); next }
+      insec && index($0, key "=") == 1 { print "found"; exit }' "${file}")" ]]; then
+    ini_set "${file}" "${section}" "${key}" "${value}"
+  fi
+}
+
+# Print the ALSA card number of the udev-tagged ET_AUDIO device
+et_audio_card() {
+  local card
+  card=$(readlink /proc/asound/ET_AUDIO 2>/dev/null) || return 1
+  echo "${card#card}"
+}
+
+# Print the PipeWire/PulseAudio node name for the ET_AUDIO card.
+#   $1 = Audio/Source or Audio/Sink
+et_audio_pw_node() {
+  local media_class="$1" card
+  card=$(et_audio_card) || return 1
+  pw-dump 2>/dev/null | jq -r --arg card "${card}" --arg class "${media_class}" '
+    [ .[] | select(.type == "PipeWire:Interface:Node") | .info.props
+      | select(."media.class" == $class and ((."alsa.card" // "") | tostring) == $card)
+      | ."node.name" ]
+    | sort_by(if test("analog-stereo$") then 0 else 1 end) | .[0] // empty'
+}
+
+# Exit if a process other than PipeWire has the ET_AUDIO PCM device open.
+# Such applications (e.g. WSJT-X, JS8Call, fldigi, ARDOP) open the card
+# directly with ALSA, which prevents PipeWire, and therefore FreeDV, from using it.
+exit_if_et_audio_busy() {
+  local status pid comm
+  for status in /proc/asound/ET_AUDIO/pcm*/sub*/status; do
+    pid=$(awk '/^owner_pid/ { print $3 }' "${status}" 2>/dev/null)
+    [[ -z "${pid}" ]] && continue
+    comm=$(cat /proc/${pid}/comm 2>/dev/null)
+    case "${comm}" in
+      pipewire|pipewire-pulse|wireplumber)
+      ;;
+      *)
+        et-log "Can't start FreeDV. Radio audio device is in use by '${comm}' (PID ${pid}). Close it first."
+        notify_user_critical "Can't start FreeDV" "Radio audio is in use by '${comm}'. Close it first."
+        exit 1
+      ;;
+    esac
+  done
+}
+
+# Show radio-specific FreeDV notes (from the radio configuration) and the
+# operator's own reminders (from ~/.config/emcomm-tools/freedv.json).
+#   $1 = start or stop
+show_operator_notes() {
+  local when="$1" radio_id notes
+  [[ -e "${ET_ACTIVE_RADIO_CONF}" ]] || return 0
+  radio_id=$(jq -r '.id' "${ET_ACTIVE_RADIO_CONF}")
+
+  notes=""
+  if [[ "${when}" == "start" ]]; then
+    notes=$(jq -r '.freedv.notes // [] | .[]' "${ET_ACTIVE_RADIO_CONF}" 2>/dev/null)
+  fi
+
+  if [[ -e "${ET_FREEDV_USER_CONFIG}" ]]; then
+    local user_notes
+    user_notes=$(jq -r --arg id "${radio_id}" --arg when "${when}" \
+      '.radios[$id][$when] // [] | .[]' "${ET_FREEDV_USER_CONFIG}" 2>/dev/null)
+    [[ -n "${user_notes}" ]] && notes=$(printf "%s\n%s" "${notes}" "${user_notes}" | sed '/^$/d')
+  fi
+
+  [[ -z "${notes}" ]] && return 0
+
+  echo -e "${YELLOW}FREEDV OPERATOR NOTES ($(jq -r '.model' "${ET_ACTIVE_RADIO_CONF}"))"
+  echo "${notes}" | sed 's/^/* /'
+  echo -e "${NC}"
+  while IFS= read -r note; do
+    et-log "FreeDV note: ${note}"
+  done <<< "${notes}"
+  notify_user_critical "FreeDV: $(jq -r '.model' "${ET_ACTIVE_RADIO_CONF}")" "$(echo "${notes}" | sed 's/^/• /')"
+}
+
+# Put the radio into the data mode FreeDV uses for the current frequency and
+# set the receive passband defined by the radio configuration (.freedv.dataPassband).
+# Only data modes (PKTUSB/PKTLSB) are handled; this path has been verified.
+configure_radio_passband() {
+  local passband model freq mode cur_mode target_mode read_back
+  passband=$(jq -r -e '.freedv.dataPassband' "${ET_ACTIVE_RADIO_CONF}" 2>/dev/null) || return 0
+  model=$(jq -r '.model' "${ET_ACTIVE_RADIO_CONF}")
+  local warning="${model} FreeDV: Set WIDTH to ${passband} Hz"
+
+  if [[ "$(ini_get "${FREEDV_CONF_FILE}" Hamlib UseAnalogModes)" == "1" ]]; then
+    et-log "FreeDV uses USB/LSB instead of data modes. Not changing the passband automatically."
+    notify_user_critical "${warning}" "FreeDV is set to use USB/LSB. Set the radio WIDTH manually."
+    return 0
+  fi
+
+  local cur_passband
+  read -r freq cur_mode cur_passband < <(timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} f m | tr '\n' ' ')
+  if [[ -z "${freq}" || -z "${cur_mode}" ]]; then
+    et-log "Could not read frequency/mode from rigctld. ${warning}"
+    notify_user_critical "${warning}" "Could not read the radio over CAT."
+    return 0
+  fi
+
+  if [[ "$(ini_get "${FREEDV_CONF_FILE}" Hamlib EnableFreqModeChanges)" == "0" ]]; then
+    # The operator manages the radio mode. Only adjust the passband in a data mode.
+    case "${cur_mode}" in
+      PKTUSB|PKTLSB) target_mode="${cur_mode}" ;;
+      *)
+        et-log "Radio is in ${cur_mode}, not a data mode. ${warning}"
+        notify_user_critical "${warning}" "Radio is in ${cur_mode}. Select DATA-USB/DATA-LSB and WIDTH ${passband} Hz."
+        return 0
+      ;;
+    esac
+  else
+    # Same sideband rule FreeDV uses: LSB below 10 MHz except 60 m (5.25-5.45 MHz)
+    if (( freq < 10000000 )) && ! (( freq >= 5250000 && freq <= 5450000 )); then
+      target_mode="PKTLSB"
+    else
+      target_mode="PKTUSB"
+    fi
+  fi
+
+  # Remember how the radio was set so that 'stop' can hand it back unchanged
+  # (e.g. DATA-USB for Winlink). Keep an existing record from an earlier start.
+  if [[ ! -e "${RADIO_STATE_FILE}" && "${cur_passband}" =~ ^[0-9]+$ && "${cur_passband}" -gt 0 ]]; then
+    mkdir -p "$(dirname "${RADIO_STATE_FILE}")"
+    echo "${cur_mode} ${cur_passband}" > "${RADIO_STATE_FILE}"
+  fi
+
+  et-log "Setting radio to ${target_mode} with ${passband} Hz passband (was ${cur_mode} ${cur_passband})"
+  timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} M "${target_mode}" "${passband}"
+  read_back=$(timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} m | tr '\n' ' ')
+
+  if [[ "${read_back}" == "${target_mode} ${passband} " ]]; then
+    et-log "Radio confirmed: ${read_back}"
+  else
+    et-log "Radio passband not confirmed (read back: '${read_back}'). ${warning}"
+    notify_user_critical "${warning}" "Could not confirm the passband over CAT (read back: ${read_back})."
+  fi
+}
+
+update-config() {
+
+    if [[ -n "$(freedv_pids)" ]]; then
+      et-log "FreeDV is running. Stop it before updating its configuration: et-freedv stop"
+      exit 1
+    fi
+
+    #################
+    # User settings
+    #################
+    CALLSIGN=$(jq -r -e '.callsign' ${ET_USER_CONFIG})
+    if [[ $? -ne 0 || "${CALLSIGN}" = "N0CALL" ]]; then
+      et-log "Can't start FreeDV. No callsign set. Run: et-user."
+      notify_user "Can't start FreeDV. No callsign set. Run: et-user."
+      exit 1
+    fi
+
+    GRID=$(et-system-info grid)
+
+    #################
+    # Radio and CAT
+    #################
+    if [[ ! -e "${ET_ACTIVE_RADIO_CONF}" ]]; then
+      et-log "Can't start FreeDV. No radio selected. Run: et-radio"
+      notify_user "Can't start FreeDV. No radio selected. Run: et-radio"
+      exit 1
+    fi
+
+    systemctl is-active --quiet rigctld
+    if [[ $? -ne 0 ]]; then
+      et-log "Can't start FreeDV. rigctld not running. Ensure radio is selected and plugged in."
+      notify_user "Can't start FreeDV. rigctld not running. Ensure radio is selected and plugged in."
+      exit 1
+    fi
+
+    #################
+    # Radio audio
+    #################
+    if [[ ! -e ${ET_DEVICE_AUDIO} ]]; then
+      et-log "No ET_AUDIO device plugged in."
+      notify_user "Can't start FreeDV. No supported audio device plugged in."
+      exit 1
+    fi
+
+    if [[ -z "$(et_audio_card)" ]]; then
+      et-log "No ET_AUDIO device detected."
+      notify_user "Can't start FreeDV. No ET_AUDIO device detected."
+      exit 1
+    fi
+
+    exit_if_et_audio_busy
+
+    RADIO_IN=$(et_audio_pw_node "Audio/Source")
+    RADIO_OUT=$(et_audio_pw_node "Audio/Sink")
+    if [[ -z "${RADIO_IN}" || -z "${RADIO_OUT}" ]]; then
+      et-log "Can't find the PipeWire nodes for the ET_AUDIO device."
+      notify_user "Can't start FreeDV. Radio audio not available in PipeWire."
+      exit 1
+    fi
+
+    ## Configure ALSA settings for sound card (same as other ETC applications)
+    /opt/emcomm-tools/bin/et-audio update-config
+
+    #################
+    # FreeDV config
+    #################
+    if [[ ! -e "${FREEDV_CONF_FILE}" ]]; then
+      et-log "${FREEDV_CONF_FILE} does not exist. Creating it. FreeDV will ask for the headset on first start."
+      mkdir -p "$(dirname "${FREEDV_CONF_FILE}")"
+      touch "${FREEDV_CONF_FILE}"
+    fi
+
+    et-log "Updating FreeDV configuration: ${FREEDV_CONF_FILE}"
+
+    # CAT and PTT through the ETC rig control daemon
+    ini_set "${FREEDV_CONF_FILE}" Hamlib UseForPTT 1
+    ini_set "${FREEDV_CONF_FILE}" Hamlib RigNameStr "Hamlib NET rigctl"
+    ini_set "${FREEDV_CONF_FILE}" Hamlib SerialPort "${RIGCTLD_ADDR}"
+    ini_set "${FREEDV_CONF_FILE}" Hamlib SerialRate 0
+    ini_set "${FREEDV_CONF_FILE}" Hamlib PttType 0
+    ini_set "${FREEDV_CONF_FILE}" Rig UseSerialPTT 0
+    et-log "Using Hamlib NET rigctl at ${RIGCTLD_ADDR} for CAT and PTT"
+
+    # Radio audio. Sound card 2 (headset) is intentionally not touched.
+    ini_set "${FREEDV_CONF_FILE}" Audio soundCard1InDeviceName "${RADIO_IN}"
+    ini_set "${FREEDV_CONF_FILE}" Audio soundCard1OutDeviceName "${RADIO_OUT}"
+    et-log "Using '${RADIO_IN}' / '${RADIO_OUT}' for radio audio"
+
+    if [[ -z "$(ini_get "${FREEDV_CONF_FILE}" Audio soundCard2InDeviceName)" ]]; then
+      notify_user "FreeDV: select your headset/microphone in Tools > Audio Config."
+    fi
+
+    # Callsign, grid and FreeDV Reporter
+    ini_set "${FREEDV_CONF_FILE}" Reporting Callsign "${CALLSIGN}"
+    ini_set "${FREEDV_CONF_FILE}" Reporting GridSquare "${GRID}"
+    ini_default "${FREEDV_CONF_FILE}" Reporting Enable 1
+    ini_default "${FREEDV_CONF_FILE}" Reporting/FreeDV Enable 1
+    et-log "Using callsign '${CALLSIGN}' and grid '${GRID}' for FreeDV Reporter"
+}
+
+start() {
+  /opt/emcomm-tools/bin/et-kill-all
+  update-config
+
+  # Ensure that we have a pre-initialized CAT control connection for select radios
+  prime_rigctld_conn
+
+  configure_radio_passband
+  show_operator_notes start
+
+  local opts=""
+  [[ "${FREEDV_CONF_FILE}" != "${FREEDV_DEFAULT_CONF_FILE}" ]] && opts="-f ${FREEDV_CONF_FILE}"
+
+  mkdir -p "${ET_LOG_DIR}"
+  et-log "Starting FreeDV with: ${FREEDV_BIN} ${opts}"
+
+  # Detach from the terminal so FreeDV keeps running when et-mode exits
+  setsid -f ${FREEDV_BIN} ${opts} >> "${ET_LOG_DIR}/freedv.log" 2>&1 < /dev/null
+
+  echo "freedv" > "${MODE_STATUS_FILE}"
+}
+
+# Ask the window manager to close FreeDV's main window (EWMH _NET_CLOSE_WINDOW).
+# The display settings are taken from the FreeDV process itself.
+request_window_close() {
+  local pid="$1"
+  ( export $(tr '\0' '\n' < /proc/${pid}/environ | grep -E '^(DISPLAY|XAUTHORITY|WAYLAND_DISPLAY)=' | xargs)
+    python3 - "$@" <<'PY'
+import ctypes, ctypes.util, re, sys
+
+pids = {int(p) for p in sys.argv[1:]}
+lib = ctypes.util.find_library("X11")
+if not pids or not lib:
+    sys.exit(2)
+x = ctypes.cdll.LoadLibrary(lib)
+ulp = ctypes.POINTER(ctypes.c_ulong)
+x.XOpenDisplay.restype = ctypes.c_void_p
+x.XOpenDisplay.argtypes = [ctypes.c_char_p]
+x.XDefaultRootWindow.restype = ctypes.c_ulong
+x.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+x.XInternAtom.restype = ctypes.c_ulong
+x.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+x.XGetWindowProperty.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_long,
+    ctypes.c_long, ctypes.c_int, ctypes.c_ulong, ulp, ctypes.POINTER(ctypes.c_int), ulp, ulp,
+    ctypes.POINTER(ctypes.c_void_p)]
+x.XFree.argtypes = [ctypes.c_void_p]
+x.XSendEvent.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_long, ctypes.c_void_p]
+x.XFlush.argtypes = [ctypes.c_void_p]
+x.XCloseDisplay.argtypes = [ctypes.c_void_p]
+
+dpy = x.XOpenDisplay(None)
+if not dpy:
+    sys.exit(2)
+root = x.XDefaultRootWindow(dpy)
+atom = lambda n: x.XInternAtom(dpy, n.encode(), 0)
+LONG = ctypes.sizeof(ctypes.c_ulong)
+
+def prop(win, name):
+    t, f, n, after, data = ctypes.c_ulong(), ctypes.c_int(), ctypes.c_ulong(), ctypes.c_ulong(), ctypes.c_void_p()
+    if x.XGetWindowProperty(dpy, win, atom(name), 0, 65536, 0, 0, ctypes.byref(t), ctypes.byref(f),
+                            ctypes.byref(n), ctypes.byref(after), ctypes.byref(data)) != 0 or not data:
+        return b""
+    raw = ctypes.string_at(data, n.value * {8: 1, 16: ctypes.sizeof(ctypes.c_short), 32: LONG}.get(f.value, 0))
+    x.XFree(data)
+    return raw
+
+def longs(raw):
+    return list((ctypes.c_ulong * (len(raw) // LONG)).from_buffer_copy(raw[:len(raw) // LONG * LONG]))
+
+candidates = []
+for win in longs(prop(root, "_NET_CLIENT_LIST")):
+    p = prop(win, "_NET_WM_PID")
+    if not p or longs(p)[0] not in pids:
+        continue
+    name = prop(win, "_NET_WM_NAME").decode("utf-8", "replace")
+    # Prefer the main frame ("FreeDV <version>") over dialogs such as FreeDV Reporter
+    rank = 0 if re.match(r"^FreeDV \d", name) else (1 if not prop(win, "WM_TRANSIENT_FOR") else 2)
+    candidates.append((rank, win, name))
+
+if not candidates:
+    sys.exit(1)
+rank, win, name = sorted(candidates)[0]
+
+class XClientMessageEvent(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_int), ("serial", ctypes.c_ulong), ("send_event", ctypes.c_int),
+                ("display", ctypes.c_void_p), ("window", ctypes.c_ulong), ("message_type", ctypes.c_ulong),
+                ("format", ctypes.c_int), ("data", ctypes.c_long * 5)]
+
+class XEvent(ctypes.Union):
+    _fields_ = [("xclient", XClientMessageEvent), ("pad", ctypes.c_long * 24)]
+
+ev = XEvent()
+ev.xclient.type = 33                     # ClientMessage
+ev.xclient.send_event = 1
+ev.xclient.window = win
+ev.xclient.message_type = atom("_NET_CLOSE_WINDOW")
+ev.xclient.format = 32
+ev.xclient.data[0] = 0                   # CurrentTime
+ev.xclient.data[1] = 2                   # source: pager/tool acting for the user
+x.XSendEvent(dpy, root, 0, (1 << 19) | (1 << 20), ctypes.byref(ev))
+x.XFlush(dpy)
+x.XCloseDisplay(dpy)
+print("Sent close request to FreeDV window 0x%x ('%s')" % (win, name))
+PY
+  )
+}
+
+wait_for_exit() {
+  local seconds="$1" i
+  for ((i = 0; i < seconds; i++)); do
+    [[ -z "$(freedv_pids)" ]] && return 0
+    sleep 1
+  done
+  [[ -z "$(freedv_pids)" ]]
+}
+
+# Restore the radio mode/passband saved by configure_radio_passband, but only
+# if the radio is still in a FreeDV data mode (i.e. the operator has not
+# changed it since). The frequency is never changed.
+restore_radio_mode() {
+  [[ -e "${RADIO_STATE_FILE}" ]] || return 0
+  local saved_mode saved_passband cur_mode read_back
+  read -r saved_mode saved_passband < "${RADIO_STATE_FILE}"
+  rm -f "${RADIO_STATE_FILE}"
+
+  systemctl is-active --quiet rigctld || return 0
+  cur_mode=$(timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} m | head -1)
+
+  case "${cur_mode}" in
+    PKTUSB|PKTLSB)
+      et-log "Restoring radio mode ${saved_mode} ${saved_passband} (was ${cur_mode} for FreeDV)"
+      timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} M "${saved_mode}" "${saved_passband}"
+      read_back=$(timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} m | tr '\n' ' ')
+      if [[ "${read_back}" != "${saved_mode} ${saved_passband} " ]]; then
+        et-log "Radio mode not confirmed (read back: '${read_back}'). Check the radio mode."
+        notify_user_critical "Check radio mode" "Could not restore ${saved_mode} after FreeDV (read back: ${read_back})."
+      fi
+    ;;
+    *)
+      et-log "Radio mode changed by the operator (${cur_mode}). Not restoring ${saved_mode}."
+    ;;
+  esac
+}
+
+stop() {
+  local pids
+  pids=$(freedv_pids)
+  if [[ -z "${pids}" ]]; then
+    # FreeDV may have been closed from its window. Still hand the radio back.
+    if [[ -e "${RADIO_STATE_FILE}" ]]; then
+      restore_radio_mode
+      show_operator_notes stop
+    fi
+    return 0
+  fi
+
+  et-log "Stopping FreeDV..."
+
+  # 1. Graceful: same as clicking the window close button
+  if request_window_close ${pids} && wait_for_exit 20; then
+    et-log "FreeDV closed normally."
+  else
+    # 2. Last resort. FreeDV can't unkey PTT or save its configuration.
+    et-log "FreeDV did not close normally. Terminating it. Unsaved FreeDV settings are lost."
+    kill -TERM ${pids} 2>/dev/null
+    if ! wait_for_exit 5; then
+      kill -KILL ${pids} 2>/dev/null
+      wait_for_exit 5
+    fi
+  fi
+
+  # 3. Belt and suspenders: make sure the radio is not left transmitting
+  if systemctl is-active --quiet rigctld; then
+    timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} T 0 && et-log "PTT released via rigctld"
+  fi
+
+  # 4. Wait for PipeWire to release the radio audio device so that modems that
+  #    open it directly with ALSA (e.g. ARDOP, Mercury) can start immediately.
+  local i busy
+  for ((i = 0; i < 15; i++)); do
+    busy=$(cat /proc/asound/ET_AUDIO/pcm*/sub*/status 2>/dev/null | grep -c '^state:')
+    [[ "${busy}" -eq 0 ]] && break
+    sleep 1
+  done
+  [[ "${busy}" -ne 0 ]] && et-log "Warning: radio audio device still in use after stopping FreeDV."
+
+  restore_radio_mode
+  show_operator_notes stop
+  return 0
+}
+
+case $1 in
+  start)
+    start
+    ;;
+  update-config)
+    update-config
+    ;;
+  stop)
+    stop
+    ;;
+  *)
+    echo "Invalid command."
+    usage
+    exit 1
+  ;;
+esac

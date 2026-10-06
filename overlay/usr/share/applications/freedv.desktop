@@ -2,7 +2,7 @@
 Version=1.0
 Name=FreeDV
 Comment=HF digital voice (FreeDV/RADE)
-Exec=/usr/local/bin/freedv
+Exec=/opt/emcomm-tools/bin/et-freedv start
 Icon=/opt/freedv/share/freedv.png
 Terminal=false
 X-MultipleArgs=false

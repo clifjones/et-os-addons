@@ -59,6 +59,7 @@ ${SCRIPTS_DIR}/install-et-launcher.sh
 
 # Install FreeDV HF digital voice
 ${SCRIPTS_DIR}/install-freedv.sh
+${SCRIPTS_DIR}/install-freedv-et-mode.sh
 
 # Install ET OS Addons command and support files
 ${SCRIPTS_DIR}/install-et-os-addons.sh

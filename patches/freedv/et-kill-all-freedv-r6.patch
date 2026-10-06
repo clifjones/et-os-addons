@@ -1,0 +1,21 @@
+--- a/et-kill-all
++++ b/et-kill-all
+@@ -3,6 +3,7 @@
+ # Author   : Gaston Gonzalez
+ # Date     : 12 November 2024
+ # Updated  : 2 October 2025
++# Updated  : 5 October 2026 (et-os-addons: stop FreeDV safely)
+ # Purpose  : Stops all EmComm Tools sound-based services (i.e. modems) and
+ #            amatuer radio applications to ensure a clean start for the next mode.
+ 
+@@ -33,6 +34,10 @@
+   pkill et-vara
+   pkill VARA 
+ 
++  # Stop FreeDV gracefully (unkeys PTT, saves its configuration and waits
++  # for the radio audio device to be released). Never force-kill it first.
++  /opt/emcomm-tools/bin/et-freedv stop
++
+   stop_pat
+ }
+ 

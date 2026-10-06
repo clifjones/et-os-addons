@@ -1,0 +1,38 @@
+--- a/et-mode
++++ b/et-mode
+@@ -3,6 +3,7 @@
+ # Author   : Gaston Gonzalez
+ # Date     : 6 November 2024
+ # Updated  : 25 March 2025
++# Updated  : 5 October 2026 (et-os-addons: add FreeDV mode)
+ # Purpose  : Configures the system for a specific mode of operation
+ 
+ # Use a simple text file to save the state of the last mode selected
+@@ -23,6 +24,7 @@
+ MODE_ID_WINLINK_PACKET="winlink-packet" 
+ MODE_ID_WINLINK_VARA_HF="winlink-vara-hf" 
+ MODE_ID_WINLINK_VARA_FM="winlink-vara-fm" 
++MODE_ID_FREEDV="freedv"
+ 
+ # Default to 1200 baud packet for terminal sessions
+ TERM_MODE=1200
+@@ -150,6 +152,8 @@
+   options+=("${MODE_ID_WINLINK_VARA_HF}" "Winlink over HF (VARA HF)")
+ fi
+ 
++options+=("${MODE_ID_FREEDV}" "HF Digital Voice (FreeDV)")
++
+ # Prompt user for option and save exit status
+ SELECTED_MODE=$(dialog --clear --menu "Select a mode:" 18 65 10 "${options[@]}" 3>&1 1>&2 2>&3)
+ exit_status=$?
+@@ -242,6 +246,10 @@
+       start_and_wait_for_service et-service-winlink-ardop
+       min http://localhost:8080
+     ;;
++    ${MODE_ID_FREEDV})
++      et-log "Starting FreeDV."
++      et-freedv start
++    ;;
+     ${MODE_ID_WINLINK_PACKET})
+       start_and_wait_for_service et-service-direwolf-simple 
+       start_and_wait_for_service et-service-winlink-packet
