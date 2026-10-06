@@ -57,6 +57,9 @@ ${SCRIPTS_DIR}/install-commstatone.sh
 # Install et-launcher
 ${SCRIPTS_DIR}/install-et-launcher.sh
 
+# Install FreeDV HF digital voice
+${SCRIPTS_DIR}/install-freedv.sh
+
 # Install ET OS Addons command and support files
 ${SCRIPTS_DIR}/install-et-os-addons.sh
 

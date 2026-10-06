@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=FreeDV
+Comment=HF digital voice (FreeDV/RADE)
+Exec=/usr/local/bin/freedv
+Icon=/opt/freedv/share/freedv.png
+Terminal=false
+X-MultipleArgs=false
+Type=Application
+Categories=Radio;HamRadio;
+StartupNotify=true
