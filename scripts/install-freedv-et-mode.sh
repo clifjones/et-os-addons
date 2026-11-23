@@ -5,8 +5,8 @@
 #  Integrates FreeDV with ETC's et-mode (same behaviour as the ETC R7 + FreeDV build):
 #   - installs the et-freedv launcher
 #   - adds the "HF Digital Voice (FreeDV)" mode to et-mode
-#   - makes et-kill-all stop FreeDV safely (PTT off, config saved, radio mode handed back)
-#   - adds the FreeDV block (WIDTH 3000, notes) to the Yaesu FT-991A radio configuration
+#   - makes et-kill-all stop FreeDV safely (PTT off, config saved, audio released)
+#   - adds the FreeDV operator notes block to the Yaesu FT-991A radio configuration
 #
 #  et-mode and et-kill-all are patched in place after ETC is installed. The patches
 #  are applied with no fuzz, after a dry run. If ETC's files no longer match the
@@ -64,13 +64,13 @@ if [[ "$(jq -r '.id' ${RADIO_CONF})" != "yaesu-ft991a" ]]; then
 fi
 TMP_FILE=$(mktemp)
 jq --argjson freedv "$(cat ${FREEDV_RADIO_BLOCK})" '. + {freedv: $freedv}' ${RADIO_CONF} > ${TMP_FILE}
-jq -e '.freedv.dataPassband == 3000 and .rigctrl.id' ${TMP_FILE} > /dev/null
+jq -e '(.freedv.notes | arrays) and .rigctrl.id' ${TMP_FILE} > /dev/null
 # Write in place to keep the file's owner, mode and the active-radio.json symlink
 cat ${TMP_FILE} > ${RADIO_CONF}
 rm -f ${TMP_FILE}
-et-log "Added FreeDV settings to $(basename ${RADIO_CONF})"
+et-log "Added FreeDV notes to $(basename ${RADIO_CONF})"
 
-# 4. Menu launcher starts FreeDV through et-freedv
-cp -v ${ET_OS_ADDONS_BASE}/overlay/usr/share/applications/freedv.desktop /usr/share/applications/.
+# The FreeDV menu launcher (freedv.desktop) and its icon are installed by
+# install-freedv.sh, so they are not duplicated here.
 
 et-log "FreeDV et-mode integration complete"

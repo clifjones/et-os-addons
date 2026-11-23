@@ -12,7 +12,7 @@ Helpful while testing (read-only):
 ## 0. Build and install
 | # | Check | Expect | Result |
 |---|---|---|---|
-| 0.1 | Build log | `install-freedv.sh`: "FreeDV 2.4.0 install complete"; `install-freedv-et-mode.sh`: "Patched et-mode", "Patched et-kill-all", "Added FreeDV settings", no ERROR | |
+| 0.1 | Build log | `install-freedv.sh`: "FreeDV 2.4.0 install complete"; `install-freedv-et-mode.sh`: "Patched et-mode", "Patched et-kill-all", "Added FreeDV notes", no ERROR | |
 | 0.2 | Test suites at the end of the build | `run-test-suite.sh` (ETC) and `tests/run-all-tests.sh` (et-os-addons) all PASSED, incl. `test-freedv.sh` and `test-et-freedv.sh` | |
 | 0.3 | After install, first login | `et-user` done (callsign, grid), FT-991A selected with `et-radio` | |
 
@@ -24,7 +24,7 @@ Helpful while testing (read-only):
 | 1.3 | First start only | FreeDV Easy Setup shows radio audio and CAT already filled in; pick the headset once | |
 | 1.4 | CAT owner | `ls -l /proc/$(pgrep -f appdir/usr/bin/freedv)/fd \| grep -c tty` = 0; FreeDV log shows `Hamlib NET rigctl` via `localhost:4532` | |
 | 1.5 | CAT frequency | Changing the band/frequency in FreeDV moves the radio | |
-| 1.6 | Mode and WIDTH | Radio in DATA-LSB below 10 MHz (except 60 m), DATA-USB above; WIDTH 3000 on the radio's display; `rigctl -m 2 m` = `PKTLSB 3000` / `PKTUSB 3000` | |
+| 1.6 | Mode and WIDTH | FreeDV sets the sideband over CAT when you change bands (DATA-LSB below 10 MHz except 60 m, DATA-USB above). WIDTH is **not** set by et-freedv: set WIDTH 3000 by hand on the radio (the start note reminds you) | |
 | 1.7 | DT GAIN | Set DT GAIN for FreeDV on the radio (no CAT command; reminder only) | |
 | 1.8 | RX | Decodes a FreeDV signal (RADE or 700D/E) on the air | |
 | 1.9 | PTT / TX | PTT from FreeDV keys the radio; RF output on a wattmeter/dummy load; ALC reasonable; PTT released afterwards (`rigctl -m 2 t` = 0) | |
@@ -40,15 +40,15 @@ This also covers the one path not tested end to end on R7: `et-kill-all` closing
 | 2.1 | Select "Winlink over HF (ARDOP)" in `et-mode` while FreeDV is open | FreeDV window closes by itself within a few seconds (no "terminated" message in the ET log) | |
 | 2.2 | PTT | Radio not transmitting; `rigctl -m 2 t` = 0 | |
 | 2.3 | FreeDV settings saved | Reopen later: FreeDV kept its settings (headset, window) | |
-| 2.4 | Radio hand-back | Radio back in the mode it had before FreeDV (normally DATA-USB), `rigctl -m 2 m` shows it; restore your ARDOP DT GAIN (reminder shown) | |
+| 2.4 | Radio mode for ARDOP | et-freedv does not change the radio mode. Set the radio to DATA-USB for ARDOP/Winlink yourself; restore your ARDOP DT GAIN (stop reminder shown) | |
 | 2.5 | ARDOP starts | No "device busy"; Pat opens; a Winlink connection over ARDOP succeeds | |
 | 2.6 | et-mode state | `winlink-ardop` | |
 
 ## 3. Back to FreeDV, and closing from its window
 | # | Check | Expect | Result |
 |---|---|---|---|
-| 3.1 | `et-mode` → FreeDV again | Starts normally; mode/WIDTH set again | |
-| 3.2 | Close FreeDV from its window, then select any other et-mode | Radio mode handed back even though FreeDV was already closed | |
+| 3.1 | `et-mode` → FreeDV again | Starts normally; start notes shown again | |
+| 3.2 | Close FreeDV from its window, then select any other et-mode | No "terminated" error; `et-freedv stop` (via et-kill-all) shows the stop notes even though FreeDV was already closed | |
 | 3.3 | Start WSJT-X (or JS8Call), then select FreeDV | FreeDV refuses to start and names the app holding the radio audio | |
 
 ## Report

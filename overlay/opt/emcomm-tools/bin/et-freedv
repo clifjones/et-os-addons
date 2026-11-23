@@ -1,7 +1,9 @@
 #!/bin/bash
 #
-# Author  : EmComm Tools R7 + FreeDV custom build
+# Author  : David Ross
 # Date    : 5 October 2026
+# Updated : 23 November 2026 (et-os-addons: seed config from template.d,
+#           drop radio-specific CAT width automation in favour of operator notes)
 # Purpose : Wrapper script for starting FreeDV with PnP support
 #
 # Preconditions
@@ -11,8 +13,7 @@
 # Postconditions
 # 1. Stop all running EmComm Tools modes
 # 2. FreeDV CAT, radio audio, callsign, grid and FreeDV Reporter settings updated
-# 3. Radio set to the FreeDV data mode/passband (only for radios that define it)
-# 4. FreeDV started
+# 3. FreeDV started
 #
 # Notes
 # 1. FreeDV uses Hamlib "NET rigctl" (localhost:4532) so that rigctld remains
@@ -30,11 +31,14 @@ FREEDV_DEFAULT_CONF_FILE="${HOME}/.config/freedv/freedv.conf"
 [ -z "$ET_FREEDV_USER_CONFIG" ] && ET_FREEDV_USER_CONFIG="${HOME}/.config/emcomm-tools/freedv.json"
 [ -z "${ET_LOG_DIR}" ] && ET_LOG_DIR="${HOME}/.local/share/emcomm-tools"
 
+# Seed configuration used only when the user has no FreeDV config yet. Follows
+# the conf/template.d convention (et-commstatone, et-qsstv): {{ET_*}} placeholders
+# are substituted on first run; per-start values are kept fresh by ini_set below.
+[ -z "${ET_HOME}" ] && ET_HOME="/opt/emcomm-tools"
+FREEDV_CONF_TEMPLATE="${ET_HOME}/conf/template.d/freedv.conf"
+
 MODE_STATUS_FILE="${HOME}/.config/emcomm-tools/et-mode"
 RIGCTLD_ADDR="localhost:4532"
-
-# Radio mode/passband found before FreeDV changed it, restored by 'stop'
-RADIO_STATE_FILE="${ET_LOG_DIR}/freedv-radio-mode.state"
 
 # Matches the extracted AppImage binary (e.g. /opt/freedv-2.4.0/appdir/usr/bin/freedv)
 FREEDV_PROC_REGEX='^/opt/freedv[^ ]*/appdir/usr/bin/freedv( |$)'
@@ -174,6 +178,14 @@ show_operator_notes() {
     [[ -n "${user_notes}" ]] && notes=$(printf "%s\n%s" "${notes}" "${user_notes}" | sed '/^$/d')
   fi
 
+  # Generic reminder on start when the radio configuration carries no FreeDV
+  # notes of its own. FreeDV RADE is ~1.5 kHz wide, so a wide DATA/SSB filter is
+  # needed. Width is set by hand on the radio (varies by model, no portable CAT
+  # command), so et-freedv only reminds; it never changes the radio's mode/width.
+  if [[ "${when}" == "start" && -z "${notes}" ]]; then
+    notes="Set the radio's DATA/SSB filter WIDTH wide enough for FreeDV (RADE is ~1.5 kHz wide; ~3000 Hz works well)."
+  fi
+
   [[ -z "${notes}" ]] && return 0
 
   echo -e "${YELLOW}FREEDV OPERATOR NOTES ($(jq -r '.model' "${ET_ACTIVE_RADIO_CONF}"))"
@@ -183,67 +195,6 @@ show_operator_notes() {
     et-log "FreeDV note: ${note}"
   done <<< "${notes}"
   notify_user_critical "FreeDV: $(jq -r '.model' "${ET_ACTIVE_RADIO_CONF}")" "$(echo "${notes}" | sed 's/^/• /')"
-}
-
-# Put the radio into the data mode FreeDV uses for the current frequency and
-# set the receive passband defined by the radio configuration (.freedv.dataPassband).
-# Only data modes (PKTUSB/PKTLSB) are handled; this path has been verified.
-configure_radio_passband() {
-  local passband model freq mode cur_mode target_mode read_back
-  passband=$(jq -r -e '.freedv.dataPassband' "${ET_ACTIVE_RADIO_CONF}" 2>/dev/null) || return 0
-  model=$(jq -r '.model' "${ET_ACTIVE_RADIO_CONF}")
-  local warning="${model} FreeDV: Set WIDTH to ${passband} Hz"
-
-  if [[ "$(ini_get "${FREEDV_CONF_FILE}" Hamlib UseAnalogModes)" == "1" ]]; then
-    et-log "FreeDV uses USB/LSB instead of data modes. Not changing the passband automatically."
-    notify_user_critical "${warning}" "FreeDV is set to use USB/LSB. Set the radio WIDTH manually."
-    return 0
-  fi
-
-  local cur_passband
-  read -r freq cur_mode cur_passband < <(timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} f m | tr '\n' ' ')
-  if [[ -z "${freq}" || -z "${cur_mode}" ]]; then
-    et-log "Could not read frequency/mode from rigctld. ${warning}"
-    notify_user_critical "${warning}" "Could not read the radio over CAT."
-    return 0
-  fi
-
-  if [[ "$(ini_get "${FREEDV_CONF_FILE}" Hamlib EnableFreqModeChanges)" == "0" ]]; then
-    # The operator manages the radio mode. Only adjust the passband in a data mode.
-    case "${cur_mode}" in
-      PKTUSB|PKTLSB) target_mode="${cur_mode}" ;;
-      *)
-        et-log "Radio is in ${cur_mode}, not a data mode. ${warning}"
-        notify_user_critical "${warning}" "Radio is in ${cur_mode}. Select DATA-USB/DATA-LSB and WIDTH ${passband} Hz."
-        return 0
-      ;;
-    esac
-  else
-    # Same sideband rule FreeDV uses: LSB below 10 MHz except 60 m (5.25-5.45 MHz)
-    if (( freq < 10000000 )) && ! (( freq >= 5250000 && freq <= 5450000 )); then
-      target_mode="PKTLSB"
-    else
-      target_mode="PKTUSB"
-    fi
-  fi
-
-  # Remember how the radio was set so that 'stop' can hand it back unchanged
-  # (e.g. DATA-USB for Winlink). Keep an existing record from an earlier start.
-  if [[ ! -e "${RADIO_STATE_FILE}" && "${cur_passband}" =~ ^[0-9]+$ && "${cur_passband}" -gt 0 ]]; then
-    mkdir -p "$(dirname "${RADIO_STATE_FILE}")"
-    echo "${cur_mode} ${cur_passband}" > "${RADIO_STATE_FILE}"
-  fi
-
-  et-log "Setting radio to ${target_mode} with ${passband} Hz passband (was ${cur_mode} ${cur_passband})"
-  timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} M "${target_mode}" "${passband}"
-  read_back=$(timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} m | tr '\n' ' ')
-
-  if [[ "${read_back}" == "${target_mode} ${passband} " ]]; then
-    et-log "Radio confirmed: ${read_back}"
-  else
-    et-log "Radio passband not confirmed (read back: '${read_back}'). ${warning}"
-    notify_user_critical "${warning}" "Could not confirm the passband over CAT (read back: ${read_back})."
-  fi
 }
 
 update-config() {
@@ -312,10 +263,26 @@ update-config() {
     #################
     # FreeDV config
     #################
+    # Seed the config on first run from the conf/template.d template (with the
+    # user's callsign, grid and radio audio nodes filled in). The surgical
+    # ini_set calls below then run on every start to keep the dynamic values
+    # fresh (audio nodes change by device) without clobbering user-owned keys
+    # such as the headset (sound card 2) or window layout.
     if [[ ! -e "${FREEDV_CONF_FILE}" ]]; then
-      et-log "${FREEDV_CONF_FILE} does not exist. Creating it. FreeDV will ask for the headset on first start."
       mkdir -p "$(dirname "${FREEDV_CONF_FILE}")"
-      touch "${FREEDV_CONF_FILE}"
+      if [[ -e "${FREEDV_CONF_TEMPLATE}" ]]; then
+        et-log "Seeding FreeDV configuration from template: ${FREEDV_CONF_TEMPLATE}"
+        cp "${FREEDV_CONF_TEMPLATE}" "${FREEDV_CONF_FILE}"
+        sed -i \
+          -e "s|{{ET_CALLSIGN}}|${CALLSIGN}|g" \
+          -e "s|{{ET_GRID}}|${GRID}|g" \
+          -e "s|{{ET_RADIO_IN}}|${RADIO_IN}|g" \
+          -e "s|{{ET_RADIO_OUT}}|${RADIO_OUT}|g" \
+          "${FREEDV_CONF_FILE}"
+      else
+        et-log "${FREEDV_CONF_TEMPLATE} not found. Creating an empty config. FreeDV will ask for the headset on first start."
+        touch "${FREEDV_CONF_FILE}"
+      fi
     fi
 
     et-log "Updating FreeDV configuration: ${FREEDV_CONF_FILE}"
@@ -353,7 +320,6 @@ start() {
   # Ensure that we have a pre-initialized CAT control connection for select radios
   prime_rigctld_conn
 
-  configure_radio_passband
   show_operator_notes start
 
   local opts=""
@@ -462,43 +428,13 @@ wait_for_exit() {
   [[ -z "$(freedv_pids)" ]]
 }
 
-# Restore the radio mode/passband saved by configure_radio_passband, but only
-# if the radio is still in a FreeDV data mode (i.e. the operator has not
-# changed it since). The frequency is never changed.
-restore_radio_mode() {
-  [[ -e "${RADIO_STATE_FILE}" ]] || return 0
-  local saved_mode saved_passband cur_mode read_back
-  read -r saved_mode saved_passband < "${RADIO_STATE_FILE}"
-  rm -f "${RADIO_STATE_FILE}"
-
-  systemctl is-active --quiet rigctld || return 0
-  cur_mode=$(timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} m | head -1)
-
-  case "${cur_mode}" in
-    PKTUSB|PKTLSB)
-      et-log "Restoring radio mode ${saved_mode} ${saved_passband} (was ${cur_mode} for FreeDV)"
-      timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} M "${saved_mode}" "${saved_passband}"
-      read_back=$(timeout 10 rigctl -m 2 -r ${RIGCTLD_ADDR} m | tr '\n' ' ')
-      if [[ "${read_back}" != "${saved_mode} ${saved_passband} " ]]; then
-        et-log "Radio mode not confirmed (read back: '${read_back}'). Check the radio mode."
-        notify_user_critical "Check radio mode" "Could not restore ${saved_mode} after FreeDV (read back: ${read_back})."
-      fi
-    ;;
-    *)
-      et-log "Radio mode changed by the operator (${cur_mode}). Not restoring ${saved_mode}."
-    ;;
-  esac
-}
-
 stop() {
   local pids
   pids=$(freedv_pids)
   if [[ -z "${pids}" ]]; then
-    # FreeDV may have been closed from its window. Still hand the radio back.
-    if [[ -e "${RADIO_STATE_FILE}" ]]; then
-      restore_radio_mode
-      show_operator_notes stop
-    fi
+    # FreeDV may have been closed from its own window. If it was the active mode,
+    # still surface the operator's "stop" notes (e.g. restore ARDOP DT GAIN).
+    [[ "$(cat "${MODE_STATUS_FILE}" 2>/dev/null)" == "freedv" ]] && show_operator_notes stop
     return 0
   fi
 
@@ -532,7 +468,6 @@ stop() {
   done
   [[ "${busy}" -ne 0 ]] && et-log "Warning: radio audio device still in use after stopping FreeDV."
 
-  restore_radio_mode
   show_operator_notes stop
   return 0
 }

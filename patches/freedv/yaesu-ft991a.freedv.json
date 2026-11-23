@@ -1,7 +1,6 @@
 {
-  "dataPassband": 3000,
   "notes": [
-    "FreeDV needs WIDTH = 3000 Hz in DATA-USB/DATA-LSB. et-freedv sets this over CAT and warns if it cannot.",
+    "FreeDV needs a wide filter: set WIDTH = 3000 Hz in DATA-USB/DATA-LSB on the radio (no portable CAT command, so et-freedv does not set it).",
     "DT GAIN cannot be set over CAT. Set DT GAIN for FreeDV on the radio, and restore your data-mode (ARDOP/Winlink) value afterwards."
   ]
 }

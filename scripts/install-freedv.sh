@@ -75,7 +75,11 @@ chmod -v 755 ${INSTALL_BIN_DIR}/${APP}
 ln -v -s ${INSTALL_DIR} ${LINK_PATH}
 ln -v -s -f ${LINK_PATH}/bin/${APP} /usr/local/bin/${APP}
 
-et-log "Creating icon..."
+et-log "Installing desktop icon..."
+# The AppImage is the canonical source of the icon. Install it to the standard
+# pixmaps location referenced by freedv.desktop (same convention as the other
+# et-os-addons launchers, e.g. netcontrol, js8spotter).
+install -v -D -m 644 ${APP_DIR}/freedv256x256.png /usr/share/pixmaps/freedv.png
 cp -v ${ET_OS_ADDONS_BASE}/overlay/usr/share/applications/freedv.desktop /usr/share/applications/.
 
 et-log "FreeDV ${VERSION} install complete"

@@ -19,7 +19,9 @@ ${ET_FREEDV} > /dev/null 2>&1 && fail "et-freedv without arguments must fail"
 #grep -q 'et-freedv start' ${ET_BIN}/et-mode                  || fail "et-mode does not start et-freedv"
 #grep -q 'et-freedv stop' ${ET_BIN}/et-kill-all               || fail "et-kill-all does not stop FreeDV"
 grep -q '^Exec=/opt/emcomm-tools/bin/et-freedv start' ${DESKTOP} || fail "freedv.desktop does not use et-freedv"
-jq -e '.freedv.dataPassband | numbers' ${RADIO_CONF} > /dev/null || fail "FT-991A freedv.dataPassband missing"
+ICON=$(sed -n 's|^Icon=||p' ${DESKTOP})
+[[ -n "${ICON}" && -e "${ICON}" ]]                          || fail "freedv.desktop icon missing: ${ICON}"
+jq -e '.freedv.notes | arrays' ${RADIO_CONF} > /dev/null || fail "FT-991A freedv.notes missing"
 jq -e '.id and .rigctrl.id' ${RADIO_CONF} > /dev/null        || fail "FT-991A radio configuration broken"
 
 # 2. Runtime dependencies
